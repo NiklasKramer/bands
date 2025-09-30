@@ -1,0 +1,2 @@
+# bands
+filterbank norns script
