@@ -31,13 +31,14 @@ Engine_Bands : CroneEngine {
             // simple gate: signal must exceed threshold to pass
             gate_level = Amplitude.kr((sig[0] + sig[1]) * 0.5, ampAtk, ampRel);
             gate_open = (gate_level > thresh).asFloat; // 1 if above threshold, 0 if below
-            gate_open = Lag.kr(gate_open, 0.02); // smooth gate transitions
+            gate_open = Lag.kr(gate_open, 0.1); // smooth gate transitions
             sig = sig * gate_open; // simple VCA
     
             outSig = Balance2.ar(sig[0] * gain, sig[1] * gain, pan, 1);
             
             // meter the final output level (after gain and pan)
             meter = Amplitude.kr((outSig[0] + outSig[1]) * 0.5, ampAtk, ampRel);
+            meter = Lag.kr(meter, 0.5); // additional smoothing for meter visualization
             // convert meter to dB scale for visualization (0-1 range)
             meter_db = (meter + 0.001).ampdb;
             meter_normalized = (meter_db + 60).clip(0, 60) / 60; // -60dB to 0dB -> 0-1

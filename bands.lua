@@ -217,7 +217,7 @@ function grid_redraw()
         if meter_h > 0 then
             local meter_y0 = 15 - meter_h + 1
             for y = meter_y0, 15 do
-                grid_device:led(col, y, (y == meter_y0) and 15 or 8) -- bright top, medium body
+                grid_device:led(col, y, (y == meter_y0) and 12 or 4) -- bright top, medium body
             end
         end
 
@@ -245,7 +245,7 @@ start_meter_polls = function()
                 band_meters[i] = v
                 -- print(string.format("meter[%02d]=%.4f", i, v))
             end)
-            p.time = 1 / 30
+            p.time = 1 / 60
             p:start()
             band_meter_polls[#band_meter_polls + 1] = p
         end
