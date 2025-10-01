@@ -654,7 +654,7 @@ function add_params()
         type = "control",
         id = "glide",
         name = "glide",
-        controlspec = controlspec.new(0, 2, 'lin', 0.01, 0.1, 's'),
+        controlspec = controlspec.new(0, 20, 'lin', 0.01, 0.1, 's'),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
 
