@@ -28,17 +28,32 @@ local mode_names = { "levels", "pans", "thresholds" }
 local shift_held = false
 
 -- init is called when the script loads
-function init()
+-- Initialize screen settings
+local function init_screen()
     screen.aa(0)
     screen.line_width(1)
+end
+
+-- Initialize parameters and meters
+local function init_params_and_meters()
     add_params()
     params:bang()
     start_meter_polls()
-    -- start periodic grid refresh (~40 Hz)
+end
+
+-- Initialize grid refresh metro
+local function init_grid_metro()
     metro_grid_refresh = metro.init(function(stage)
         grid_redraw()
     end, 1 / 60)
     metro_grid_refresh:start()
+end
+
+-- Main init function
+function init()
+    init_screen()
+    init_params_and_meters()
+    init_grid_metro()
     redraw()
 end
 
@@ -48,26 +63,13 @@ function key(n, z)
     -- add key handling here
 end
 
--- grid key handling for band control
--- Helper function to calculate level row from dB value
-local function level_db_to_row(level_db)
-    -- inverse of: level_db = 6 - ((y - 1) * 66 / 14)
-    local level_y = util.round((6 - level_db) * 14 / 66 + 1)
-    return util.clamp(level_y, 1, 15)
-end
-
 -- Helper function to calculate dB value from row
 local function row_to_level_db(y)
     -- row 1 = +6dB, row 15 = -60dB
     return 6 - ((y - 1) * 66 / 14)
 end
 
--- Helper function to calculate pan row from pan value
-local function pan_to_row(pan)
-    -- inverse of: pan = (y - 8) / 7
-    local pan_y = util.round(pan * 7 + 8)
-    return util.clamp(pan_y, 1, 15)
-end
+
 
 -- Helper function to calculate pan value from row
 local function row_to_pan(y)
@@ -75,12 +77,7 @@ local function row_to_pan(y)
     return (y - 8) / 7
 end
 
--- Helper function to calculate threshold row from threshold value
-local function threshold_to_row(thresh)
-    -- inverse of: thresh = 1 - ((y - 1) / 14)
-    local thresh_y = util.round((1 - thresh) * 14 + 1)
-    return util.clamp(thresh_y, 1, 15)
-end
+
 
 -- Helper function to calculate threshold value from row
 local function row_to_threshold(y)
