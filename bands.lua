@@ -49,78 +49,121 @@ function key(n, z)
 end
 
 -- grid key handling for band control
+-- Helper function to calculate level row from dB value
+local function level_db_to_row(level_db)
+    -- inverse of: level_db = 6 - ((y - 1) * 66 / 14)
+    local level_y = util.round((6 - level_db) * 14 / 66 + 1)
+    return util.clamp(level_y, 1, 15)
+end
+
+-- Helper function to calculate dB value from row
+local function row_to_level_db(y)
+    -- row 1 = +6dB, row 15 = -60dB
+    return 6 - ((y - 1) * 66 / 14)
+end
+
+-- Helper function to calculate pan row from pan value
+local function pan_to_row(pan)
+    -- inverse of: pan = (y - 8) / 7
+    local pan_y = util.round(pan * 7 + 8)
+    return util.clamp(pan_y, 1, 15)
+end
+
+-- Helper function to calculate pan value from row
+local function row_to_pan(y)
+    -- row 1 = -1 (left), row 8 = 0 (center), row 15 = +1 (right)
+    return (y - 8) / 7
+end
+
+-- Helper function to calculate threshold row from threshold value
+local function threshold_to_row(thresh)
+    -- inverse of: thresh = 1 - ((y - 1) / 14)
+    local thresh_y = util.round((1 - thresh) * 14 + 1)
+    return util.clamp(thresh_y, 1, 15)
+end
+
+-- Helper function to calculate threshold value from row
+local function row_to_threshold(y)
+    -- row 1 = 1.0, row 15 = 0.0
+    return 1 - ((y - 1) / 14)
+end
+
+-- Helper function to set parameter for a single band or all bands
+local function set_band_param(band_idx, param_type, value, shift_held, format_str)
+    format_str = format_str or "%.2f"
+    if shift_held then
+        -- set all bands
+        for i = 1, #freqs do
+            local param_id = string.format("band_%02d_%s", i, param_type)
+            params:set(param_id, value)
+        end
+        print(string.format("all bands: set %s to " .. format_str, param_type, value))
+    else
+        -- set single band
+        local param_id = string.format("band_%02d_%s", band_idx, param_type)
+        params:set(param_id, value)
+        print(string.format("band %d: set %s to " .. format_str, band_idx, param_type, value))
+    end
+end
+
+-- Handle level mode
+local function handle_level_mode(band_idx, y, shift_held)
+    local level_db = row_to_level_db(y)
+    set_band_param(band_idx, "level", level_db, shift_held, "%.1f dB")
+end
+
+-- Handle pan mode
+local function handle_pan_mode(band_idx, y, shift_held)
+    local pan = row_to_pan(y)
+    set_band_param(band_idx, "pan", pan, shift_held, "%.2f")
+end
+
+-- Handle threshold mode
+local function handle_threshold_mode(band_idx, y, shift_held)
+    local thresh = row_to_threshold(y)
+    set_band_param(band_idx, "thresh", thresh, shift_held, "%.2f")
+end
+
+-- Handle mode selector row
+local function handle_mode_selector(x)
+    if x >= 1 and x <= 3 then
+        grid_mode = x
+        print(string.format("mode: %s", mode_names[grid_mode]))
+        redraw()
+    end
+end
+
+-- Handle band control rows
+local function handle_band_control(x, y, shift_held)
+    local band_idx = x
+    if band_idx <= #freqs then
+        if grid_mode == 1 then
+            handle_level_mode(band_idx, y, shift_held)
+        elseif grid_mode == 2 then
+            handle_pan_mode(band_idx, y, shift_held)
+        elseif grid_mode == 3 then
+            handle_threshold_mode(band_idx, y, shift_held)
+        end
+        grid_redraw()
+    end
+end
+
 function grid.key(x, y, z)
+    -- Handle shift key at position 16,16
     if y == 16 and x == 16 then
-        -- shift key at position 16,16
         shift_held = (z == 1)
         grid_redraw()
         return
     end
 
+    -- Only process key press events
     if z == 1 then
         if y == 16 then
-            -- mode selector in row 16
-            if x >= 1 and x <= 3 then
-                grid_mode = x
-                print(string.format("mode: %s", mode_names[grid_mode]))
-            end
+            -- Mode selector in row 16
+            handle_mode_selector(x)
         elseif y >= 1 and y <= 15 then
-            -- band control in rows 1-15
-            local band_idx = x
-            if band_idx <= #freqs then
-                if grid_mode == 1 then
-                    -- set levels: row 1 = +6dB, row 15 = -60dB
-                    local level_db = 6 - ((y - 1) * 66 / 14)
-                    if shift_held then
-                        -- set all bands
-                        for i = 1, #freqs do
-                            local level_id = string.format("band_%02d_level", i)
-                            params:set(level_id, level_db)
-                        end
-                        print(string.format("all bands: set level to %.1f dB", level_db))
-                    else
-                        -- set single band
-                        local level_id = string.format("band_%02d_level", band_idx)
-                        params:set(level_id, level_db)
-                        print(string.format("band %d: set level to %.1f dB", band_idx, level_db))
-                    end
-                elseif grid_mode == 2 then
-                    -- set pans: row 1 = -1 (left), row 8 = 0 (center), row 15 = +1 (right)
-                    local pan = (y - 8) / 7 -- map y 1-15 to pan -1 to +1, with 8 = 0
-                    if shift_held then
-                        -- set all bands
-                        for i = 1, #freqs do
-                            local pan_id = string.format("band_%02d_pan", i)
-                            params:set(pan_id, pan)
-                        end
-                        print(string.format("all bands: set pan to %.2f", pan))
-                    else
-                        -- set single band
-                        local pan_id = string.format("band_%02d_pan", band_idx)
-                        params:set(pan_id, pan)
-                        print(string.format("band %d: set pan to %.2f", band_idx, pan))
-                    end
-                elseif grid_mode == 3 then
-                    -- set thresholds: row 1 = 1.0, row 15 = 0.0
-                    local thresh = 1 - ((y - 1) / 14) -- map y 1-15 to thresh 1 to 0
-                    if shift_held then
-                        -- set all bands
-                        for i = 1, #freqs do
-                            local thresh_id = string.format("band_%02d_thresh", i)
-                            params:set(thresh_id, thresh)
-                        end
-                        print(string.format("all bands: set threshold to %.2f", thresh))
-                    else
-                        -- set single band
-                        local thresh_id = string.format("band_%02d_thresh", band_idx)
-                        params:set(thresh_id, thresh)
-                        print(string.format("band %d: set threshold to %.2f", band_idx, thresh))
-                    end
-                end
-
-                -- immediately update grid to reflect the change
-                grid_redraw()
-            end
+            -- Band control in rows 1-15
+            handle_band_control(x, y, shift_held)
         end
     end
 end
@@ -136,7 +179,7 @@ function redraw()
     screen.clear()
     screen.level(15)
     screen.move(64, 32)
-    screen.text_center("script skeleton")
+    screen.text_center(mode_names[grid_mode])
     screen.update()
 end
 
@@ -219,13 +262,16 @@ function grid_redraw()
 
         -- show current parameter value as background
         if grid_mode == 1 then
-            -- levels: show position (row 1 = +6dB, row 15 = -60dB)
+            -- levels: show bar (row 1 = +6dB, row 15 = -60dB)
             local level_id = string.format("band_%02d_level", i)
             local level_db = params:get(level_id)
             -- inverse of: level_db = 6 - ((y - 1) * 66 / 14)
             local level_y = util.round((6 - level_db) * 14 / 66 + 1)
             level_y = util.clamp(level_y, 1, 15)
-            grid_device:led(col, level_y, 4) -- highlight level position
+            -- draw bar from level_y down to row 15
+            for y = level_y, 15 do
+                grid_device:led(col, y, 1) -- dim bar
+            end
         elseif grid_mode == 2 then
             -- pans: show single position
             local pan_id = string.format("band_%02d_pan", i)
@@ -244,12 +290,14 @@ function grid_redraw()
             grid_device:led(col, thresh_y, 4) -- highlight threshold position
         end
 
-        -- show meter on top (brighter)
-        local meter_h = math.floor(util.clamp(meter_v, 0, 1) * 15 + 0.5)
-        if meter_h > 0 then
-            local meter_y0 = 15 - meter_h + 1
-            for y = meter_y0, 15 do
-                grid_device:led(col, y, (y == meter_y0) and 12 or 4) -- bright top, medium body
+        -- show meter on top (brighter) - only in level mode
+        if grid_mode == 1 then
+            local meter_h = math.floor(util.clamp(meter_v, 0, 1) * 15 + 0.5)
+            if meter_h > 0 then
+                local meter_y0 = 15 - meter_h + 1
+                for y = meter_y0, 15 do
+                    grid_device:led(col, y, (y == meter_y0) and 15 or 5) -- bright top, bright body
+                end
             end
         end
 
