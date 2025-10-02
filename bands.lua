@@ -168,40 +168,99 @@ local function apply_blend(x, y, old_x, old_y)
     end
 
     -- Check if glide is enabled
-    local glide_time = params:get("glide")
-    if glide_time > 0 then
-        -- Start glide
-        glide_state.target_values = target_values
-        glide_state.glide_time = util.time()
-        glide_state.is_gliding = true
+    local glide_time_param = params:get("glide")
+    if glide_time_param > 0 then
+        if glide_state.is_gliding then
+            -- INTERRUPTION CASE: Use current interpolated position and values as new start
+            local current_time = util.time()
+            local elapsed = current_time - glide_state.glide_time
+            local progress = math.min(elapsed / glide_time_param, 1.0)
 
-        -- Store old position as starting point (if provided), otherwise use current
-        glide_state.start_pos.x = old_x or grid_ui_state.current_matrix_pos.x
-        glide_state.start_pos.y = old_y or grid_ui_state.current_matrix_pos.y
+            -- Calculate current interpolated position
+            print(string.format("INTERRUPT DEBUG: elapsed=%.3f glide_time=%.3f progress=%.3f", elapsed, glide_time_param,
+                progress))
+            print(string.format("INTERRUPT DEBUG: start_pos=(%.3f,%.3f) target_pos=(%d,%d)",
+                glide_state.start_pos.x or -999, glide_state.start_pos.y or -999,
+                glide_state.target_pos.x, glide_state.target_pos.y))
+
+            local current_x = glide_state.start_pos.x +
+                (glide_state.target_pos.x - glide_state.start_pos.x) * progress
+            local current_y = glide_state.start_pos.y +
+                (glide_state.target_pos.y - glide_state.start_pos.y) * progress
+
+            -- Calculate current interpolated parameter values
+            local current_values = {}
+            current_values.q = glide_state.current_values.q +
+                (glide_state.target_values.q - glide_state.current_values.q) * progress
+
+            for i = 1, #freqs do
+                local level_id = string.format("band_%02d_level", i)
+                local pan_id = string.format("band_%02d_pan", i)
+                local thresh_id = string.format("band_%02d_thresh", i)
+
+                current_values[level_id] = glide_state.current_values[level_id] +
+                    (glide_state.target_values[level_id] - glide_state.current_values[level_id]) * progress
+                current_values[pan_id] = glide_state.current_values[pan_id] +
+                    (glide_state.target_values[pan_id] - glide_state.current_values[pan_id]) * progress
+                current_values[thresh_id] = glide_state.current_values[thresh_id] +
+                    (glide_state.target_values[thresh_id] - glide_state.current_values[thresh_id]) * progress
+            end
+
+            print(string.format("=== GLIDE INTERRUPTED: was %.1f%% complete, restarting from (%.2f,%.2f) to (%d,%d) ===",
+                progress * 100, current_x, current_y, x, y))
+            print(string.format("INTERRUPT: Setting last_led_pos to (%.2f,%.2f) -> (%d,%d)",
+                current_x, current_y, math.floor(current_x + 0.5), math.floor(current_y + 0.5)))
+
+            -- Use current interpolated values as new starting point (ensure they're valid numbers)
+            glide_state.start_pos.x = current_x or glide_state.start_pos.x
+            glide_state.start_pos.y = current_y or glide_state.start_pos.y
+            glide_state.current_values = current_values
+
+            -- Validate that start_pos contains valid numbers
+            if not glide_state.start_pos.x or glide_state.start_pos.x ~= glide_state.start_pos.x then
+                print("ERROR: Invalid start_pos.x, using fallback")
+                glide_state.start_pos.x = grid_ui_state.current_matrix_pos.x
+            end
+            if not glide_state.start_pos.y or glide_state.start_pos.y ~= glide_state.start_pos.y then
+                print("ERROR: Invalid start_pos.y, using fallback")
+                glide_state.start_pos.y = grid_ui_state.current_matrix_pos.y
+            end
+
+            -- Update last LED position for smooth visual transition (round to integers)
+            glide_state.last_led_pos.x = math.floor(current_x + 0.5)
+            glide_state.last_led_pos.y = math.floor(current_y + 0.5)
+        else
+            -- NORMAL CASE: Start new glide
+            print(string.format("=== GLIDE START: from (%d,%d) to (%d,%d) ===",
+                old_x or grid_ui_state.current_matrix_pos.x, old_y or grid_ui_state.current_matrix_pos.y, x, y))
+
+            glide_state.start_pos.x = old_x or grid_ui_state.current_matrix_pos.x
+            glide_state.start_pos.y = old_y or grid_ui_state.current_matrix_pos.y
+
+            -- Store current parameter values as starting point
+            glide_state.current_values = {}
+            glide_state.current_values.q = params:get("q")
+            for i = 1, #freqs do
+                local level_id = string.format("band_%02d_level", i)
+                local pan_id = string.format("band_%02d_pan", i)
+                local thresh_id = string.format("band_%02d_thresh", i)
+
+                glide_state.current_values[level_id] = params:get(level_id)
+                glide_state.current_values[pan_id] = params:get(pan_id)
+                glide_state.current_values[thresh_id] = params:get(thresh_id)
+            end
+
+            -- Initialize last LED position to start position
+            glide_state.last_led_pos.x = glide_state.start_pos.x
+            glide_state.last_led_pos.y = glide_state.start_pos.y
+        end
+
+        -- Set new target (common for both cases)
         glide_state.target_pos.x = x
         glide_state.target_pos.y = y
-
-        -- Initialize last LED position to start position
-        glide_state.last_led_pos.x = glide_state.start_pos.x
-        glide_state.last_led_pos.y = glide_state.start_pos.y
-
-        print(string.format("=== GLIDE START: from (%d,%d) to (%d,%d) ===",
-            glide_state.start_pos.x, glide_state.start_pos.y,
-            glide_state.target_pos.x, glide_state.target_pos.y))
-
-        -- Don't update matrix position immediately - let the glide animate it
-
-        -- Store current values as starting point
-        glide_state.current_values.q = params:get("q")
-        for i = 1, #freqs do
-            local level_id = string.format("band_%02d_level", i)
-            local pan_id = string.format("band_%02d_pan", i)
-            local thresh_id = string.format("band_%02d_thresh", i)
-
-            glide_state.current_values[level_id] = params:get(level_id)
-            glide_state.current_values[pan_id] = params:get(pan_id)
-            glide_state.current_values[thresh_id] = params:get(thresh_id)
-        end
+        glide_state.target_values = target_values
+        glide_state.glide_time = util.time() -- Reset glide start time
+        glide_state.is_gliding = true
     else
         -- Apply immediately
         params:set("q", target_values.q)
@@ -224,7 +283,13 @@ local function switch_to_snapshot(snapshot_name)
     current_snapshot = snapshot_name
     recall_snapshot(snapshot_name)
 
+    -- Stop any ongoing glide when switching snapshots
+    glide_state.is_gliding = false
+
     -- Move matrix position to corresponding corner
+    local old_x = grid_ui_state.current_matrix_pos.x
+    local old_y = grid_ui_state.current_matrix_pos.y
+
     if snapshot_name == "A" then
         grid_ui_state.current_matrix_pos = { x = 1, y = 1 }   -- Top-left (2,2 on grid)
     elseif snapshot_name == "B" then
@@ -235,8 +300,11 @@ local function switch_to_snapshot(snapshot_name)
         grid_ui_state.current_matrix_pos = { x = 14, y = 14 } -- Bottom-right (15,15 on grid)
     end
 
-    -- Apply the blend for the new matrix position
-    apply_blend(grid_ui_state.current_matrix_pos.x, grid_ui_state.current_matrix_pos.y)
+    -- Apply the blend for the new matrix position WITHOUT glide (force immediate)
+    local saved_glide_param = params:get("glide")
+    params:set("glide", 0)                 -- Temporarily disable glide
+    apply_blend(grid_ui_state.current_matrix_pos.x, grid_ui_state.current_matrix_pos.y, old_x, old_y)
+    params:set("glide", saved_glide_param) -- Restore glide setting
 
     print(string.format("Switched to Snapshot %s", snapshot_name))
     redraw()      -- Update the screen to show the new snapshot
@@ -461,16 +529,28 @@ function init()
                 grid_ui_state.current_matrix_pos.y = glide_state.start_pos.y +
                     (glide_state.target_pos.y - glide_state.start_pos.y) * progress
 
+                -- Validate start_pos before calculation
+                if not glide_state.start_pos.x or glide_state.start_pos.x ~= glide_state.start_pos.x then
+                    print("ERROR: Invalid start_pos.x in metro, stopping glide")
+                    glide_state.is_gliding = false
+                    return
+                end
+                if not glide_state.start_pos.y or glide_state.start_pos.y ~= glide_state.start_pos.y then
+                    print("ERROR: Invalid start_pos.y in metro, stopping glide")
+                    glide_state.is_gliding = false
+                    return
+                end
+
                 -- Draw the current glide position directly on the grid
                 local current_x = glide_state.start_pos.x +
                     (glide_state.target_pos.x - glide_state.start_pos.x) * progress
                 local current_y = glide_state.start_pos.y +
                     (glide_state.target_pos.y - glide_state.start_pos.y) * progress
 
-                print(string.format("GLIDE CALC: start=(%d,%d) target=(%d,%d) progress=%.2f result=(%.2f,%.2f)",
-                    glide_state.start_pos.x, glide_state.start_pos.y,
+                print(string.format("GLIDE CALC: start=(%.2f,%.2f) target=(%d,%d) progress=%.2f result=(%.2f,%.2f)",
+                    glide_state.start_pos.x or -999, glide_state.start_pos.y or -999,
                     glide_state.target_pos.x, glide_state.target_pos.y,
-                    progress, current_x, current_y))
+                    progress, current_x or -999, current_y or -999))
 
                 -- Round to integer grid positions
                 current_x = math.floor(current_x + 0.5)
@@ -497,7 +577,10 @@ function init()
 
                 -- Check if this is a new position (walking started or moved)
                 if glide_state.last_led_pos.x ~= current_x or glide_state.last_led_pos.y ~= current_y then
-                    print(string.format(">>> WALKING: LED moved to (%d,%d) <<<", led_x, led_y))
+                    print(string.format(">>> WALKING: LED moved from (%d,%d) to (%d,%d) <<<",
+                        glide_state.last_led_pos.x, glide_state.last_led_pos.y, current_x, current_y))
+                else
+                    print(string.format(">>> STATIC: LED staying at (%d,%d) <<<", current_x, current_y))
                 end
 
                 print(string.format("Glide LED: current=(%d,%d) brightness=15", led_x, led_y))
