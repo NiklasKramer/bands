@@ -5,7 +5,9 @@ Comprehensive test suite for the bands Norns script, covering unit tests, integr
 ## Test Files
 
 ### `test_bands.lua` - Unit Tests
+
 Core functionality testing:
+
 - Snapshot system initialization and data integrity
 - Blend weight calculation (bilinear interpolation)
 - Grid coordinate validation
@@ -14,7 +16,9 @@ Core functionality testing:
 - Frequency array integrity
 
 ### `test_integration.lua` - Integration Tests
+
 End-to-end workflow testing:
+
 - Parameter system initialization
 - Snapshot store/recall workflow
 - Matrix blending with different snapshots
@@ -24,7 +28,9 @@ End-to-end workflow testing:
 - Grid coordinate mapping
 
 ### `test_performance.lua` - Performance Tests
+
 Real-time performance validation:
+
 - Blend weight calculation speed
 - Full parameter blending performance
 - Grid redraw simulation timing
@@ -37,12 +43,14 @@ Real-time performance validation:
 ## Running Tests
 
 ### Run All Tests
+
 ```bash
 cd /path/to/bands
 lua test/run_tests.lua
 ```
 
 ### Run Specific Test Suite
+
 ```bash
 lua test/run_tests.lua test_bands
 lua test/run_tests.lua test_integration
@@ -50,6 +58,7 @@ lua test/run_tests.lua test_performance
 ```
 
 ### Run Individual Test Files
+
 ```bash
 lua test/test_bands.lua
 lua test/test_integration.lua
@@ -59,6 +68,7 @@ lua test/test_performance.lua
 ## Test Coverage
 
 ### Core Functions Tested
+
 - `init_snapshots()` - Snapshot initialization
 - `calculate_blend_weights()` - Bilinear interpolation
 - `store_snapshot()` / `recall_snapshot()` - Snapshot management
@@ -68,13 +78,15 @@ lua test/test_performance.lua
 - Glide interpolation
 
 ### Performance Benchmarks
+
 - **Blend calculation**: < 0.1ms per call
-- **Parameter blending**: < 1ms per call  
+- **Parameter blending**: < 1ms per call
 - **Grid redraw**: < 16ms (60fps compatible)
 - **Glide step**: < 1ms per step
 - **Memory growth**: < 100KB per 1000 operations
 
 ### Real-time Constraints
+
 - **Audio rate**: Operations complete within 1ms (audio callback safe)
 - **UI rate**: Updates complete within 16ms (60fps compatible)
 - **Stress test**: 19,600 calculations in < 1 second
@@ -82,6 +94,7 @@ lua test/test_performance.lua
 ## Test Framework
 
 Simple custom test framework with:
+
 - `test(name, func)` - Define a test case
 - `assert_equal(actual, expected, message)` - Exact equality
 - `assert_near(actual, expected, tolerance, message)` - Floating point comparison
@@ -91,6 +104,7 @@ Simple custom test framework with:
 ## Mock Environment
 
 Tests use mock Norns environment:
+
 - Mock `params` system for parameter management
 - Mock `engine` for SuperCollider communication
 - Mock `grid` device for Monome grid simulation
@@ -99,6 +113,7 @@ Tests use mock Norns environment:
 ## Expected Results
 
 All tests should pass for a healthy codebase:
+
 - **Unit tests**: Verify core algorithm correctness
 - **Integration tests**: Ensure components work together
 - **Performance tests**: Validate real-time performance
@@ -106,11 +121,13 @@ All tests should pass for a healthy codebase:
 ## Troubleshooting
 
 ### Common Issues
+
 1. **Module not found**: Ensure you're running from the bands project root
 2. **Performance failures**: May indicate need for optimization
 3. **Integration failures**: Check mock environment setup
 
 ### Adding New Tests
+
 1. Add test cases to appropriate test file
 2. Use existing test framework functions
 3. Include both positive and negative test cases
@@ -119,6 +136,7 @@ All tests should pass for a healthy codebase:
 ## Continuous Integration
 
 These tests can be integrated into CI/CD pipelines:
+
 - Exit code 0 = all tests pass
 - Exit code 1 = some tests failed
 - Detailed output shows which tests failed and why
