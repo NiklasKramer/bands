@@ -29,13 +29,14 @@ local grid_ui_state
 
 -- Glide state
 local glide_state = {
-    current_values = {},            -- Current parameter values during glide
-    target_values = {},             -- Target parameter values to glide to
-    glide_time = 0,                 -- Time when glide started
-    is_gliding = false,             -- Whether we're currently gliding
-    start_pos = { x = 0, y = 0 },   -- Starting matrix position
-    target_pos = { x = 0, y = 0 },  -- Target matrix position
-    last_led_pos = { x = 0, y = 0 } -- Last LED position to clear
+    current_values = {},             -- Current parameter values during glide
+    target_values = {},              -- Target parameter values to glide to
+    glide_time = 0,                  -- Time when glide started
+    is_gliding = false,              -- Whether we're currently gliding
+    start_pos = { x = 0, y = 0 },    -- Starting matrix position
+    target_pos = { x = 0, y = 0 },   -- Target matrix position
+    last_led_pos = { x = 0, y = 0 }, -- Last LED position to clear (legacy)
+    last_led_positions = {}          -- Array of LED positions for sub-pixel clearing
 }
 
 -- Snapshot system
@@ -348,11 +349,32 @@ local function redraw_grid()
             end
 
             if grid_ui_state.grid_mode == 1 then
-                local meter_h = math.floor(util.clamp(meter_v, 0, 1) * 15 + 0.5)
-                if meter_h > 0 then
-                    local meter_y0 = 15 - meter_h + 1
+                -- Sub-pixel brightness interpolation for meters
+                local meter_height_float = util.clamp(meter_v, 0, 1) * 15
+                local meter_height_int = math.floor(meter_height_float)
+                local meter_frac = meter_height_float - meter_height_int
+
+                if meter_height_float > 0 then
+                    local meter_y0 = 15 - meter_height_int + 1
+
+                    -- Draw full brightness LEDs for the solid part
                     for y = meter_y0, 15 do
                         g:led(col, y, (y == meter_y0) and 15 or 5)
+                    end
+
+                    -- Add sub-pixel LED with interpolated brightness
+                    if meter_frac > 0 and meter_y0 > 1 then
+                        local sub_pixel_y = meter_y0 - 1
+                        -- Brightness based on fractional part: 2 (background) + fraction * (15-2)
+                        local sub_pixel_brightness = math.floor(2 + meter_frac * 13 + 0.5)
+                        sub_pixel_brightness = math.max(2, math.min(15, sub_pixel_brightness))
+                        g:led(col, sub_pixel_y, sub_pixel_brightness)
+
+                        -- Debug output for sub-pixel metering
+                        if meter_frac > 0.1 then -- Only print when significant
+                            print(string.format("METER SUB-PIXEL: band=%d height=%.2f frac=%.2f y=%d brightness=%d",
+                                i, meter_height_float, meter_frac, sub_pixel_y, sub_pixel_brightness))
+                        end
                     end
                 end
             end
@@ -552,53 +574,72 @@ function init()
                     glide_state.target_pos.x, glide_state.target_pos.y,
                     progress, current_x or -999, current_y or -999))
 
-                -- Round to integer grid positions
-                current_x = math.floor(current_x + 0.5)
-                current_y = math.floor(current_y + 0.5)
-
-                -- Ensure we have valid integer coordinates
-                current_x = math.max(1, math.min(14, current_x))
-                current_y = math.max(1, math.min(14, current_y))
-
-                -- Clear the previous LED position
-                if glide_state.last_led_pos.x > 0 and glide_state.last_led_pos.y > 0 then
-                    local last_led_x = glide_state.last_led_pos.x + 1
-                    local last_led_y = glide_state.last_led_pos.y + 1
-                    print(string.format("Clearing previous LED: (%d,%d)", last_led_x, last_led_y))
-                    if last_led_x >= 1 and last_led_x <= 16 and last_led_y >= 1 and last_led_y <= 16 then
-                        print(string.format("CALLING grid_device:led(%d,%d,2)", last_led_x, last_led_y))
-                        grid_device:led(last_led_x, last_led_y, 2) -- Reset to background brightness
+                -- Clear previous sub-pixel LEDs (stored as a 2x2 grid)
+                if glide_state.last_led_positions then
+                    for _, pos in ipairs(glide_state.last_led_positions) do
+                        if pos.x >= 1 and pos.x <= 16 and pos.y >= 1 and pos.y <= 16 then
+                            grid_device:led(pos.x, pos.y, 2) -- Reset to background brightness
+                        end
                     end
                 end
 
-                -- Light up the current position (bright)
-                local led_x = current_x + 1
-                local led_y = current_y + 1
+                -- Calculate 2x2 grid positions around the fractional coordinate
+                local x_floor = math.floor(current_x)
+                local y_floor = math.floor(current_y)
+                local x_frac = current_x - x_floor
+                local y_frac = current_y - y_floor
 
-                -- Check if this is a new position (walking started or moved)
-                if glide_state.last_led_pos.x ~= current_x or glide_state.last_led_pos.y ~= current_y then
-                    print(string.format(">>> WALKING: LED moved from (%d,%d) to (%d,%d) <<<",
-                        glide_state.last_led_pos.x, glide_state.last_led_pos.y, current_x, current_y))
-                else
-                    print(string.format(">>> STATIC: LED staying at (%d,%d) <<<", current_x, current_y))
+                -- Clamp to valid matrix bounds (1-14)
+                x_floor = math.max(1, math.min(13, x_floor)) -- Max 13 so x_floor+1 <= 14
+                y_floor = math.max(1, math.min(13, y_floor)) -- Max 13 so y_floor+1 <= 14
+
+                -- Calculate brightness for 2x2 grid using bilinear interpolation
+                local positions = {
+                    { x = x_floor,     y = y_floor,     weight = (1 - x_frac) * (1 - y_frac) },
+                    { x = x_floor + 1, y = y_floor,     weight = x_frac * (1 - y_frac) },
+                    { x = x_floor,     y = y_floor + 1, weight = (1 - x_frac) * y_frac },
+                    { x = x_floor + 1, y = y_floor + 1, weight = x_frac * y_frac }
+                }
+
+                -- Store positions for clearing next time
+                glide_state.last_led_positions = {}
+
+                -- Light up the 2x2 grid with interpolated brightness
+                for _, pos in ipairs(positions) do
+                    if pos.x >= 1 and pos.x <= 14 and pos.y >= 1 and pos.y <= 14 then
+                        -- Convert matrix position to grid position (add 1)
+                        local grid_x = pos.x + 1
+                        local grid_y = pos.y + 1
+
+                        -- Calculate brightness: 2 (background) + weight * (15-2) range
+                        local brightness = math.floor(2 + pos.weight * 13 + 0.5)
+                        brightness = math.max(2, math.min(15, brightness))
+
+                        grid_device:led(grid_x, grid_y, brightness)
+
+                        -- Store for clearing next time
+                        table.insert(glide_state.last_led_positions, { x = grid_x, y = grid_y })
+
+                        print(string.format("SUB-PIXEL: grid(%d,%d) weight=%.3f brightness=%d",
+                            grid_x, grid_y, pos.weight, brightness))
+                    end
                 end
 
-                print(string.format("Glide LED: current=(%d,%d) brightness=15", led_x, led_y))
-                if led_x >= 1 and led_x <= 16 and led_y >= 1 and led_y <= 16 then
-                    print(string.format("CALLING grid_device:led(%d,%d,15)", led_x, led_y))
-                    grid_device:led(led_x, led_y, 15)
-                    -- Store this position to clear next time
-                    glide_state.last_led_pos.x = current_x
-                    glide_state.last_led_pos.y = current_y
-                end
-
-                -- Also light up the target position (dim)
+                -- Also show the target position dimly (if not overlapping with current interpolation)
                 local target_led_x = glide_state.target_pos.x + 1
                 local target_led_y = glide_state.target_pos.y + 1
-                print(string.format("Glide LED: target=(%d,%d) brightness=6", target_led_x, target_led_y))
                 if target_led_x >= 1 and target_led_x <= 16 and target_led_y >= 1 and target_led_y <= 16 then
-                    print(string.format("CALLING grid_device:led(%d,%d,6)", target_led_x, target_led_y))
-                    grid_device:led(target_led_x, target_led_y, 6)
+                    -- Check if target overlaps with any of our interpolated positions
+                    local overlaps = false
+                    for _, pos in ipairs(glide_state.last_led_positions) do
+                        if pos.x == target_led_x and pos.y == target_led_y then
+                            overlaps = true
+                            break
+                        end
+                    end
+                    if not overlaps then
+                        grid_device:led(target_led_x, target_led_y, 6) -- Dim target indicator
+                    end
                 end
 
                 -- Force grid refresh to apply changes
