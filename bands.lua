@@ -7,6 +7,9 @@ local grid_device = grid.connect()
 -- modules
 local grid_ui = include 'lib/grid_ui'
 local meters_mod = include 'lib/meters'
+local path_mod = include 'lib/path'
+local glide_mod = include 'lib/glide'
+local grid_draw_mod = include 'lib/grid_draw'
 
 -- params
 local controlspec = require 'controlspec'
@@ -30,7 +33,7 @@ local grid_ui_state
 -- Glide state
 local glide_state = {
     current_values = {},             -- Current parameter values during glide
-    target_values = {},              -- Target parameter values to glide to
+    target_values = { q = 1.0 },     -- Target parameter values to glide to (initialize with default)
     glide_time = 0,                  -- Time when glide started
     is_gliding = false,              -- Whether we're currently gliding
     start_pos = { x = 0, y = 0 },    -- Starting matrix position
@@ -38,6 +41,17 @@ local glide_state = {
     last_led_pos = { x = 0, y = 0 }, -- Last LED position to clear (legacy)
     last_led_positions = {}          -- Array of LED positions for sub-pixel clearing
 }
+
+-- Path mode state
+local path_state = {
+    mode = false,        -- Whether path mode is enabled on matrix
+    recording = false,   -- Whether currently recording a path
+    points = {},         -- Array of recorded path points
+    playing = false,     -- Whether currently playing the path
+    current_point = 1,   -- Current point index in playback
+    playback_metro = nil -- Metro for path playback timing
+}
+
 
 -- Snapshot system
 local snapshots = {
@@ -132,7 +146,7 @@ local function calculate_blend_weights(x, y)
 end
 
 -- Apply blended parameters to engine
-local function apply_blend(x, y, old_x, old_y)
+function apply_blend(x, y, old_x, old_y)
     print(string.format("apply_blend called with x=%d, y=%d", x, y))
     local a_w, b_w, c_w, d_w = calculate_blend_weights(x, y)
     print(string.format("Blend weights: A=%.2f B=%.2f C=%.2f D=%.2f", a_w, b_w, c_w, d_w))
@@ -178,11 +192,8 @@ local function apply_blend(x, y, old_x, old_y)
             local progress = math.min(elapsed / glide_time_param, 1.0)
 
             -- Calculate current interpolated position
-            print(string.format("INTERRUPT DEBUG: elapsed=%.3f glide_time=%.3f progress=%.3f", elapsed, glide_time_param,
-                progress))
-            print(string.format("INTERRUPT DEBUG: start_pos=(%.3f,%.3f) target_pos=(%d,%d)",
-                glide_state.start_pos.x or -999, glide_state.start_pos.y or -999,
-                glide_state.target_pos.x, glide_state.target_pos.y))
+
+
 
             local current_x = glide_state.start_pos.x +
                 (glide_state.target_pos.x - glide_state.start_pos.x) * progress
@@ -308,172 +319,29 @@ local function switch_to_snapshot(snapshot_name)
     params:set("glide", saved_glide_param) -- Restore glide setting
 
     print(string.format("Switched to Snapshot %s", snapshot_name))
-    redraw()      -- Update the screen to show the new snapshot
-    redraw_grid() -- Update the grid to show the new matrix position
+    redraw() -- Update the screen to show the new snapshot
+    -- Grid will be updated by metro_grid_refresh
 end
 
 
 
+
 -- Grid redraw function
-local function redraw_grid()
+function redraw_grid()
     local g = grid_device
     g:all(0)
     local num = #freqs
 
-    -- draw band controls (rows 1-15) - only when NOT in matrix mode
+
+    -- Draw main content based on mode
     if grid_ui_state.grid_mode ~= 4 then
-        for i = 1, math.min(16, num) do
-            local meter_v = band_meters[i] or 0
-            local col = i
-
-            if grid_ui_state.grid_mode == 1 then
-                local level_id = string.format("band_%02d_level", i)
-                local level_db = params:get(level_id)
-                local level_y = util.round((6 - level_db) * 14 / 66 + 1)
-                level_y = util.clamp(level_y, 1, 15)
-                for y = level_y, 15 do
-                    g:led(col, y, 1)
-                end
-            elseif grid_ui_state.grid_mode == 2 then
-                local pan_id = string.format("band_%02d_pan", i)
-                local pan = params:get(pan_id)
-                local pan_y = util.round(pan * 7 + 8)
-                pan_y = util.clamp(pan_y, 1, 15)
-                g:led(col, pan_y, 4)
-            elseif grid_ui_state.grid_mode == 3 then
-                local thresh_id = string.format("band_%02d_thresh", i)
-                local thresh = params:get(thresh_id)
-                local thresh_y = util.round((1 - thresh) * 14 + 1)
-                thresh_y = util.clamp(thresh_y, 1, 15)
-                g:led(col, thresh_y, 4)
-            end
-
-            if grid_ui_state.grid_mode == 1 then
-                -- Sub-pixel brightness interpolation for meters
-                local meter_height_float = util.clamp(meter_v, 0, 1) * 15
-                local meter_height_int = math.floor(meter_height_float)
-                local meter_frac = meter_height_float - meter_height_int
-
-                if meter_height_float > 0 then
-                    local meter_y0 = 15 - meter_height_int + 1
-
-                    -- Draw full brightness LEDs for the solid part
-                    for y = meter_y0, 15 do
-                        g:led(col, y, (y == meter_y0) and 15 or 5)
-                    end
-
-                    -- Add sub-pixel LED with interpolated brightness
-                    if meter_frac > 0 and meter_y0 > 1 then
-                        local sub_pixel_y = meter_y0 - 1
-                        -- Brightness based on fractional part: 2 (background) + fraction * (15-2)
-                        local sub_pixel_brightness = math.floor(2 + meter_frac * 13 + 0.5)
-                        sub_pixel_brightness = math.max(2, math.min(15, sub_pixel_brightness))
-                        g:led(col, sub_pixel_y, sub_pixel_brightness)
-
-                        -- Debug output for sub-pixel metering
-                        if meter_frac > 0.1 then -- Only print when significant
-                            print(string.format("METER SUB-PIXEL: band=%d height=%.2f frac=%.2f y=%d brightness=%d",
-                                i, meter_height_float, meter_frac, sub_pixel_y, sub_pixel_brightness))
-                        end
-                    end
-                end
-            end
-
-            if grid_ui_state.grid_mode == 2 then
-                g:led(col, 8, 12)
-            end
-        end
+        grid_draw_mod.draw_band_controls(g, num)
+    else
+        grid_draw_mod.draw_matrix_mode(g)
     end
 
-    -- Matrix mode display
-    if grid_ui_state.grid_mode == 4 then
-        for x = 2, 15 do
-            for y = 2, 15 do
-                local a_w, b_w, c_w, d_w = calculate_blend_weights(x - 1, y - 1)
-                local brightness = 2
-                g:led(x, y, brightness)
-            end
-        end
-
-        -- Draw matrix position indicator
-        if glide_state.is_gliding then
-            local current_time = util.time()
-            local elapsed = current_time - glide_state.glide_time
-            local glide_time = params:get("glide")
-
-            if elapsed < glide_time then
-                local progress = elapsed / glide_time
-
-                -- Calculate the current glide position
-                local glide_x = glide_state.start_pos.x + (glide_state.target_pos.x - glide_state.start_pos.x) * progress
-                local glide_y = glide_state.start_pos.y + (glide_state.target_pos.y - glide_state.start_pos.y) * progress
-
-                -- Draw a simple trail by lighting up discrete steps along the path
-                local total_steps = math.max(2,
-                    math.abs(glide_state.target_pos.x - glide_state.start_pos.x) +
-                    math.abs(glide_state.target_pos.y - glide_state.start_pos.y))
-                local current_step = math.floor(progress * total_steps)
-
-                -- Debug output
-                print(string.format(
-                    "Glide trail: start=(%d,%d) target=(%d,%d) progress=%.2f current_step=%d total_steps=%d",
-                    glide_state.start_pos.x, glide_state.start_pos.y,
-                    glide_state.target_pos.x, glide_state.target_pos.y,
-                    progress, current_step, total_steps))
-
-                -- Always draw at least the start position
-                if current_step >= 0 then
-                    for step = 0, math.max(0, current_step) do
-                        local step_progress = step / total_steps
-                        local step_x = glide_state.start_pos.x +
-                            (glide_state.target_pos.x - glide_state.start_pos.x) * step_progress
-                        local step_y = glide_state.start_pos.y +
-                            (glide_state.target_pos.y - glide_state.start_pos.y) * step_progress
-
-                        -- Round to integer grid positions
-                        step_x = math.floor(step_x + 0.5)
-                        step_y = math.floor(step_y + 0.5)
-
-                        -- Much brighter trail to be visible against background (brightness 2)
-                        local brightness = math.floor(8 + (12 - 8) * (step / math.max(1, current_step + 1)))
-                        print(string.format("  Step %d: pos=(%d,%d) brightness=%d", step, step_x, step_y, brightness))
-                        g:led(step_x + 1, step_y + 1, brightness)
-                    end
-                end
-
-                -- Draw the target position (dim but visible)
-                g:led(glide_state.target_pos.x + 1, glide_state.target_pos.y + 1, 6)
-            else
-                -- Glide complete, show normal bright position
-                g:led(grid_ui_state.current_matrix_pos.x + 1, grid_ui_state.current_matrix_pos.y + 1, 15)
-            end
-        else
-            -- Not gliding, show normal bright position
-            g:led(grid_ui_state.current_matrix_pos.x + 1, grid_ui_state.current_matrix_pos.y + 1, 15)
-        end
-    end
-
-    -- Draw snapshot selection buttons in row 16
-    local snapshot_buttons = { 7, 8, 9, 10 }
-    local snapshot_names = { "A", "B", "C", "D" }
-    for i, x in ipairs(snapshot_buttons) do
-        local brightness = (current_snapshot == snapshot_names[i]) and 15 or 4
-        g:led(x, 16, brightness)
-    end
-
-    -- draw mode selector in row 16
-    for x = 1, 3 do
-        local brightness = (x == grid_ui_state.grid_mode) and 15 or 4
-        g:led(x, 16, brightness)
-    end
-
-    -- Matrix mode button
-    local matrix_brightness = (grid_ui_state.grid_mode == 4) and 15 or 4
-    g:led(14, 16, matrix_brightness)
-
-    -- draw shift key at 16,16
-    local shift_brightness = grid_ui_state.shift_held and 15 or 4
-    g:led(16, 16, shift_brightness)
+    -- Draw UI controls
+    grid_draw_mod.draw_ui_controls(g)
 
     g:refresh()
 end
@@ -497,6 +365,49 @@ function init()
     -- setup meters
     band_meter_polls = meters_mod.init(freqs, band_meters)
 
+    -- initialize glide_state with default values
+    glide_state.target_values.q = 1.0
+    for i = 1, #freqs do
+        local level_id = string.format("band_%02d_level", i)
+        local pan_id = string.format("band_%02d_pan", i)
+        local thresh_id = string.format("band_%02d_thresh", i)
+        glide_state.target_values[level_id] = 0.0
+        glide_state.target_values[pan_id] = 0.0
+        glide_state.target_values[thresh_id] = 0.5
+    end
+
+    -- initialize modules with dependencies
+    path_mod.init({
+        grid_ui_state = grid_ui_state,
+        apply_blend = apply_blend,
+        redraw = redraw,
+        metro = metro,
+        util = util,
+        params = params,
+        path_state = path_state
+    })
+
+    glide_mod.init({
+        grid_ui_state = grid_ui_state,
+        grid_device = grid_device,
+        freqs = freqs,
+        params = params,
+        path_state = path_state,
+        redraw_grid = redraw_grid,
+        glide_state = glide_state
+    })
+
+    grid_draw_mod.init({
+        grid_ui_state = grid_ui_state,
+        band_meters = band_meters,
+        util = util,
+        params = params,
+        calculate_blend_weights = calculate_blend_weights,
+        path_state = path_state,
+        glide_state = glide_state,
+        current_snapshot = current_snapshot
+    })
+
     -- start grid refresh metro
     metro_grid_refresh = metro.init(function()
         -- Only redraw grid if not gliding (glide metro handles grid during glide)
@@ -516,157 +427,15 @@ function init()
             local glide_time = params:get("glide")
 
             if elapsed >= glide_time then
-                -- Glide complete
-                params:set("q", glide_state.target_values.q)
-                for i = 1, #freqs do
-                    local level_id = string.format("band_%02d_level", i)
-                    local pan_id = string.format("band_%02d_pan", i)
-                    local thresh_id = string.format("band_%02d_thresh", i)
-
-                    params:set(level_id, glide_state.target_values[level_id])
-                    params:set(pan_id, glide_state.target_values[pan_id])
-                    params:set(thresh_id, glide_state.target_values[thresh_id])
-                end
-                glide_state.is_gliding = false
-
-                -- Update matrix position to final target position
-                grid_ui_state.current_matrix_pos.x = glide_state.target_pos.x
-                grid_ui_state.current_matrix_pos.y = glide_state.target_pos.y
-
-                print(string.format("=== GLIDE END: reached (%d,%d) ===",
-                    glide_state.target_pos.x, glide_state.target_pos.y))
-
-                -- Redraw grid to show final position
-                redraw_grid()
+                glide_mod.complete_glide()
             else
-                -- Interpolate between current and target values
-                local progress = elapsed / glide_time
-                local current_q = glide_state.current_values.q +
-                    (glide_state.target_values.q - glide_state.current_values.q) * progress
-                params:set("q", current_q)
-
-                -- Update matrix position during glide
-                grid_ui_state.current_matrix_pos.x = glide_state.start_pos.x +
-                    (glide_state.target_pos.x - glide_state.start_pos.x) * progress
-                grid_ui_state.current_matrix_pos.y = glide_state.start_pos.y +
-                    (glide_state.target_pos.y - glide_state.start_pos.y) * progress
-
-                -- Validate start_pos before calculation
-                if not glide_state.start_pos.x or glide_state.start_pos.x ~= glide_state.start_pos.x then
-                    print("ERROR: Invalid start_pos.x in metro, stopping glide")
-                    glide_state.is_gliding = false
-                    return
-                end
-                if not glide_state.start_pos.y or glide_state.start_pos.y ~= glide_state.start_pos.y then
-                    print("ERROR: Invalid start_pos.y in metro, stopping glide")
-                    glide_state.is_gliding = false
-                    return
-                end
-
-                -- Draw the current glide position directly on the grid
-                local current_x = glide_state.start_pos.x +
-                    (glide_state.target_pos.x - glide_state.start_pos.x) * progress
-                local current_y = glide_state.start_pos.y +
-                    (glide_state.target_pos.y - glide_state.start_pos.y) * progress
-
-                print(string.format("GLIDE CALC: start=(%.2f,%.2f) target=(%d,%d) progress=%.2f result=(%.2f,%.2f)",
-                    glide_state.start_pos.x or -999, glide_state.start_pos.y or -999,
-                    glide_state.target_pos.x, glide_state.target_pos.y,
-                    progress, current_x or -999, current_y or -999))
-
-                -- Clear previous sub-pixel LEDs (stored as a 2x2 grid)
-                if glide_state.last_led_positions then
-                    for _, pos in ipairs(glide_state.last_led_positions) do
-                        if pos.x >= 1 and pos.x <= 16 and pos.y >= 1 and pos.y <= 16 then
-                            grid_device:led(pos.x, pos.y, 2) -- Reset to background brightness
-                        end
-                    end
-                end
-
-                -- Calculate 2x2 grid positions around the fractional coordinate
-                local x_floor = math.floor(current_x)
-                local y_floor = math.floor(current_y)
-                local x_frac = current_x - x_floor
-                local y_frac = current_y - y_floor
-
-                -- Clamp to valid matrix bounds (1-14)
-                x_floor = math.max(1, math.min(13, x_floor)) -- Max 13 so x_floor+1 <= 14
-                y_floor = math.max(1, math.min(13, y_floor)) -- Max 13 so y_floor+1 <= 14
-
-                -- Calculate brightness for 2x2 grid using bilinear interpolation
-                local positions = {
-                    { x = x_floor,     y = y_floor,     weight = (1 - x_frac) * (1 - y_frac) },
-                    { x = x_floor + 1, y = y_floor,     weight = x_frac * (1 - y_frac) },
-                    { x = x_floor,     y = y_floor + 1, weight = (1 - x_frac) * y_frac },
-                    { x = x_floor + 1, y = y_floor + 1, weight = x_frac * y_frac }
-                }
-
-                -- Store positions for clearing next time
-                glide_state.last_led_positions = {}
-
-                -- Light up the 2x2 grid with interpolated brightness
-                for _, pos in ipairs(positions) do
-                    if pos.x >= 1 and pos.x <= 14 and pos.y >= 1 and pos.y <= 14 then
-                        -- Convert matrix position to grid position (add 1)
-                        local grid_x = pos.x + 1
-                        local grid_y = pos.y + 1
-
-                        -- Calculate brightness: 2 (background) + weight * (15-2) range
-                        local brightness = math.floor(2 + pos.weight * 13 + 0.5)
-                        brightness = math.max(2, math.min(15, brightness))
-
-                        grid_device:led(grid_x, grid_y, brightness)
-
-                        -- Store for clearing next time
-                        table.insert(glide_state.last_led_positions, { x = grid_x, y = grid_y })
-
-                        print(string.format("SUB-PIXEL: grid(%d,%d) weight=%.3f brightness=%d",
-                            grid_x, grid_y, pos.weight, brightness))
-                    end
-                end
-
-                -- Also show the target position dimly (if not overlapping with current interpolation)
-                local target_led_x = glide_state.target_pos.x + 1
-                local target_led_y = glide_state.target_pos.y + 1
-                if target_led_x >= 1 and target_led_x <= 16 and target_led_y >= 1 and target_led_y <= 16 then
-                    -- Check if target overlaps with any of our interpolated positions
-                    local overlaps = false
-                    for _, pos in ipairs(glide_state.last_led_positions) do
-                        if pos.x == target_led_x and pos.y == target_led_y then
-                            overlaps = true
-                            break
-                        end
-                    end
-                    if not overlaps then
-                        grid_device:led(target_led_x, target_led_y, 6) -- Dim target indicator
-                    end
-                end
-
-                -- Force grid refresh to apply changes
-                grid_device:refresh()
-
-                for i = 1, #freqs do
-                    local level_id = string.format("band_%02d_level", i)
-                    local pan_id = string.format("band_%02d_pan", i)
-                    local thresh_id = string.format("band_%02d_thresh", i)
-
-                    local current_level = glide_state.current_values[level_id] +
-                        (glide_state.target_values[level_id] - glide_state.current_values[level_id]) * progress
-                    local current_pan = glide_state.current_values[pan_id] +
-                        (glide_state.target_values[pan_id] - glide_state.current_values[pan_id]) * progress
-                    local current_thresh = glide_state.current_values[thresh_id] +
-                        (glide_state.target_values[thresh_id] - glide_state.current_values[thresh_id]) * progress
-
-                    params:set(level_id, current_level)
-                    params:set(pan_id, current_pan)
-                    params:set(thresh_id, current_thresh)
-                end
-
-                -- Grid is updated directly above, no need to call redraw_grid()
+                glide_mod.update_glide_progress(elapsed, glide_time)
             end
         end
     end, 1 / 60)
     metro_glide:start()
+
+
 
     redraw()
 end
@@ -679,6 +448,12 @@ function grid.key(x, y, z)
         switch_to_snapshot = switch_to_snapshot,
         apply_blend = apply_blend,
         calculate_blend_weights = calculate_blend_weights,
+        toggle_path_mode = path_mod.toggle_path_mode,
+        toggle_path_recording = path_mod.toggle_path_recording,
+        add_path_point = path_mod.add_path_point,
+        remove_path_point = path_mod.remove_path_point,
+        clear_path = path_mod.clear_path,
+        get_path_mode = path_mod.get_path_mode,
         get_current_snapshot = function() return current_snapshot end,
         get_freqs = function() return freqs end,
         get_mode_names = function() return mode_names end,
@@ -710,14 +485,31 @@ function redraw()
         screen.text_center(string.format("Matrix: %d,%d",
             grid_ui_state.current_matrix_pos.x,
             grid_ui_state.current_matrix_pos.y))
+
+        -- Path mode status
+        screen.move(64, 50)
+        screen.text_center(string.format("Path Mode: %s", path_mode and "ON" or "OFF"))
+
+        -- Path status
+        if path_mode then
+            screen.move(64, 60)
+            screen.text_center(string.format("Path: %d points", #path_points))
+
+            if path_playing then
+                screen.move(64, 70)
+                screen.text_center(string.format("Playing: %d/%d", path_current_point, #path_points))
+            end
+        end
     end
 
     -- Global Q value
-    screen.move(64, 50)
+    local q_y = (grid_ui_state.grid_mode == 4) and (path_mode and (path_playing and 80 or 70) or 60) or 50
+    screen.move(64, q_y)
     screen.text_center(string.format("Q: %.2f", params:get("q")))
 
     -- Glide value
-    screen.move(64, 60)
+    local glide_y = (grid_ui_state.grid_mode == 4) and (path_mode and (path_playing and 90 or 80) or 70) or 60
+    screen.move(64, glide_y)
     screen.text_center(string.format("Glide: %.2fs", params:get("glide")))
 
     -- Instructions
@@ -746,6 +538,10 @@ function cleanup()
     if metro_glide then
         metro_glide:stop()
         metro_glide = nil
+    end
+    if path_state.playback_metro then
+        path_state.playback_metro:stop()
+        path_state.playback_metro = nil
     end
 end
 

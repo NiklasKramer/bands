@@ -20,7 +20,15 @@ end
 
 -- Handle matrix control
 function GridUI.handle_matrix_control(ui_state, x, y, snapshot_functions)
-    if x >= 2 and x <= 15 and y >= 2 and y <= 15 then
+    if x == 16 and y == 1 then
+        -- Path mode toggle at position (16,1)
+        snapshot_functions.toggle_path_mode()
+        print("Path mode toggled")
+    elseif x == 1 and y == 1 then
+        -- Path recording start/stop at position (1,1)
+        snapshot_functions.toggle_path_recording()
+        print("Path recording toggled")
+    elseif x >= 2 and x <= 15 and y >= 2 and y <= 15 then
         -- Store the old position before updating
         local old_x = ui_state.current_matrix_pos.x
         local old_y = ui_state.current_matrix_pos.y
@@ -28,8 +36,19 @@ function GridUI.handle_matrix_control(ui_state, x, y, snapshot_functions)
         -- Update to new position
         ui_state.current_matrix_pos = { x = x - 1, y = y - 1 }
 
-        -- Call apply_blend with the new position, but pass old position as start
-        snapshot_functions.apply_blend(ui_state.current_matrix_pos.x, ui_state.current_matrix_pos.y, old_x, old_y)
+        -- Handle path mode: add points or clear all points
+        if snapshot_functions.get_path_mode and snapshot_functions.get_path_mode() then
+            if ui_state.shift_held then
+                -- Shift + press: clear all path points
+                snapshot_functions.clear_path()
+            else
+                -- Normal press: add point to path
+                snapshot_functions.add_path_point(ui_state.current_matrix_pos.x, ui_state.current_matrix_pos.y)
+            end
+        else
+            -- Normal matrix movement
+            snapshot_functions.apply_blend(ui_state.current_matrix_pos.x, ui_state.current_matrix_pos.y, old_x, old_y)
+        end
         print(string.format("matrix pos: %d,%d", ui_state.current_matrix_pos.x, ui_state.current_matrix_pos.y))
     end
 end
@@ -38,6 +57,13 @@ end
 function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_functions)
     if y == 16 and x == 16 then
         ui_state.shift_held = (z == 1)
+
+        -- Shift + (16,16): Clear path
+        if z == 1 and ui_state.shift_held and snapshot_functions.clear_path then
+            snapshot_functions.clear_path()
+            print("Path cleared")
+        end
+
         GridUI.redraw(ui_state)
         return
     end
@@ -50,16 +76,12 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                 if redraw_screen_callback then redraw_screen_callback() end
             elseif x == 7 then
                 snapshot_functions.switch_to_snapshot("A")
-                snapshot_functions.redraw_grid()
             elseif x == 8 then
                 snapshot_functions.switch_to_snapshot("B")
-                snapshot_functions.redraw_grid()
             elseif x == 9 then
                 snapshot_functions.switch_to_snapshot("C")
-                snapshot_functions.redraw_grid()
             elseif x == 10 then
                 snapshot_functions.switch_to_snapshot("D")
-                snapshot_functions.redraw_grid()
             elseif x == 14 then
                 ui_state.grid_mode = 4
                 print("mode: matrix")
@@ -77,7 +99,6 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                 elseif ui_state.grid_mode == 3 then
                     helper.handle_threshold_mode(x, y, ui_state.shift_held, snapshot_functions.get_freqs())
                 end
-                snapshot_functions.redraw_grid()
             end
         end
     end
