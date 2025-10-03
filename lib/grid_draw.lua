@@ -9,7 +9,7 @@ local params
 local calculate_blend_weights
 local path_state
 local glide_state
-local current_snapshot
+local get_current_snapshot
 
 -- Draw band controls (levels, pans, thresholds)
 function GridDraw.draw_band_controls(g, num)
@@ -73,15 +73,9 @@ function GridDraw.draw_level_meters(g, col, i, meter_v)
         if meter_frac > 0 and meter_y0 > 1 then
             local sub_pixel_y = meter_y0 - 1
             -- Brightness based on fractional part: 2 (background) + fraction * (15-2)
-            local sub_pixel_brightness = math.floor(2 + meter_frac * 13 + 0.5)
+            local sub_pixel_brightness = math.floor(2 + meter_frac * 13)
             sub_pixel_brightness = math.max(2, math.min(15, sub_pixel_brightness))
             g:led(col, sub_pixel_y, sub_pixel_brightness)
-
-            -- Debug output for sub-pixel metering
-            if meter_frac > 0.1 then -- Only print when significant
-                print(string.format("METER SUB-PIXEL: band=%d height=%.2f frac=%.2f y=%d brightness=%d",
-                    i, meter_height_float, meter_frac, sub_pixel_y, sub_pixel_brightness))
-            end
         end
     end
 end
@@ -116,9 +110,6 @@ end
 
 -- Draw path mode elements
 function GridDraw.draw_path_mode_elements(g)
-    print(string.format("DEBUG: grid_mode=%d, path_state.mode=%s, path_state.points=%d", grid_ui_state.grid_mode,
-        path_state.mode,
-        #path_state.points))
     if grid_ui_state.grid_mode == 4 then -- Matrix mode
         -- Path mode toggle indicator at (16,1)
         local path_brightness = path_state.mode and 15 or 4
@@ -128,12 +119,14 @@ function GridDraw.draw_path_mode_elements(g)
         local record_brightness = path_state.playing and 15 or 4
         g:led(1, 1, record_brightness)
 
-        -- Draw path points ONLY if path mode is enabled AND we're in matrix mode
+        -- Draw path points if path mode is enabled AND we're in matrix mode
+        -- Keep them visible all the time (not just when not gliding)
         if path_state.mode and #path_state.points > 0 then
             for i, point in ipairs(path_state.points) do
-                local led_x = point.x + 1
-                local led_y = point.y + 1
-                local brightness = (i == path_state.current_point and path_state.playing) and 15 or 8
+                local led_x = math.floor(point.x + 1)
+                local led_y = math.floor(point.y + 1)
+                -- All path points are bright (12), only the current point being processed is brightest (15)
+                local brightness = (i == path_state.current_point and path_state.playing) and 15 or 12
                 g:led(led_x, led_y, brightness)
             end
         end
@@ -146,7 +139,9 @@ function GridDraw.draw_matrix_position_indicator(g)
         GridDraw.draw_glide_trail(g)
     else
         -- Not gliding, show normal bright position
-        g:led(grid_ui_state.current_matrix_pos.x + 1, grid_ui_state.current_matrix_pos.y + 1, 15)
+        local pos_x = math.floor(grid_ui_state.current_matrix_pos.x + 1)
+        local pos_y = math.floor(grid_ui_state.current_matrix_pos.y + 1)
+        g:led(pos_x, pos_y, 15)
     end
 end
 
@@ -159,48 +154,52 @@ function GridDraw.draw_glide_trail(g)
     if elapsed < glide_time then
         local progress = elapsed / glide_time
 
-        -- Calculate the current glide position
-        local glide_x = glide_state.start_pos.x + (glide_state.target_pos.x - glide_state.start_pos.x) * progress
-        local glide_y = glide_state.start_pos.y + (glide_state.target_pos.y - glide_state.start_pos.y) * progress
+        -- Calculate the current glide position (single calculation)
+        local current_x = glide_state.start_pos.x + (glide_state.target_pos.x - glide_state.start_pos.x) * progress
+        local current_y = glide_state.start_pos.y + (glide_state.target_pos.y - glide_state.start_pos.y) * progress
 
-        -- Draw a simple trail by lighting up discrete steps along the path
-        local total_steps = math.max(2,
-            math.abs(glide_state.target_pos.x - glide_state.start_pos.x) +
-            math.abs(glide_state.target_pos.y - glide_state.start_pos.y))
-        local current_step = math.floor(progress * total_steps)
+        -- Draw 2x2 grid with sub-pixel interpolation for smooth animation
+        local x_floor = math.floor(current_x)
+        local y_floor = math.floor(current_y)
+        local x_frac = current_x - x_floor
+        local y_frac = current_y - y_floor
 
-        -- Debug output
-        print(string.format(
-            "Glide trail: start=(%d,%d) target=(%d,%d) progress=%.2f current_step=%d total_steps=%d",
-            glide_state.start_pos.x, glide_state.start_pos.y,
-            glide_state.target_pos.x, glide_state.target_pos.y,
-            progress, current_step, total_steps))
+        -- Clamp to valid matrix bounds (1-14)
+        x_floor = math.max(1, math.min(13, x_floor)) -- Max 13 so x_floor+1 <= 14
+        y_floor = math.max(1, math.min(13, y_floor)) -- Max 13 so y_floor+1 <= 14
 
-        -- Always draw at least the start position
-        if current_step >= 0 then
-            for step = 0, math.max(0, current_step) do
-                local step_progress = step / total_steps
-                local step_x = glide_state.start_pos.x +
-                    (glide_state.target_pos.x - glide_state.start_pos.x) * step_progress
-                local step_y = glide_state.start_pos.y +
-                    (glide_state.target_pos.y - glide_state.start_pos.y) * step_progress
+        -- Calculate brightness for 2x2 grid using bilinear interpolation
+        local positions = {
+            { x = x_floor,     y = y_floor,     weight = (1 - x_frac) * (1 - y_frac) },
+            { x = x_floor + 1, y = y_floor,     weight = x_frac * (1 - y_frac) },
+            { x = x_floor,     y = y_floor + 1, weight = (1 - x_frac) * y_frac },
+            { x = x_floor + 1, y = y_floor + 1, weight = x_frac * y_frac }
+        }
 
-                -- Round to integer grid positions
-                step_x = math.floor(step_x + 0.5)
-                step_y = math.floor(step_y + 0.5)
+        -- Light up the 2x2 grid with interpolated brightness
+        for _, pos in ipairs(positions) do
+            if pos.x >= 1 and pos.x <= 14 and pos.y >= 1 and pos.y <= 14 then
+                -- Convert matrix position to grid position (add 1)
+                local grid_x = pos.x + 1
+                local grid_y = pos.y + 1
 
-                -- Much brighter trail to be visible against background (brightness 2)
-                local brightness = math.floor(8 + (12 - 8) * (step / math.max(1, current_step + 1)))
-                print(string.format("  Step %d: pos=(%d,%d) brightness=%d", step, step_x, step_y, brightness))
-                g:led(step_x + 1, step_y + 1, brightness)
+                -- Calculate brightness: 2 (background) + weight * (15-2) range
+                local brightness = math.floor(2 + pos.weight * 13 + 0.5)
+                brightness = math.max(2, math.min(15, brightness))
+
+                -- Ensure coordinates and brightness are integers
+                grid_x = math.floor(grid_x)
+                grid_y = math.floor(grid_y)
+                brightness = math.floor(brightness)
+
+                g:led(grid_x, grid_y, brightness)
             end
         end
-
-        -- Draw the target position (dim but visible)
-        g:led(glide_state.target_pos.x + 1, glide_state.target_pos.y + 1, 6)
     else
         -- Glide complete, show normal bright position
-        g:led(grid_ui_state.current_matrix_pos.x + 1, grid_ui_state.current_matrix_pos.y + 1, 15)
+        local pos_x = math.floor(grid_ui_state.current_matrix_pos.x + 1)
+        local pos_y = math.floor(grid_ui_state.current_matrix_pos.y + 1)
+        g:led(pos_x, pos_y, 15)
     end
 end
 
@@ -224,7 +223,7 @@ function GridDraw.draw_snapshot_buttons(g)
     local snapshot_buttons = { 7, 8, 9, 10 }
     local snapshot_names = { "A", "B", "C", "D" }
     for i, x in ipairs(snapshot_buttons) do
-        local brightness = (current_snapshot == snapshot_names[i]) and 15 or 4
+        local brightness = (get_current_snapshot() == snapshot_names[i]) and 15 or 4
         g:led(x, 16, brightness)
     end
 end
@@ -258,7 +257,7 @@ function GridDraw.init(deps)
     calculate_blend_weights = deps.calculate_blend_weights
     path_state = deps.path_state
     glide_state = deps.glide_state
-    current_snapshot = deps.current_snapshot
+    get_current_snapshot = deps.get_current_snapshot
 end
 
 return GridDraw

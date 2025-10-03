@@ -13,17 +13,11 @@ local glide_state
 
 -- Complete glide animation
 function Glide.complete_glide()
-    -- Debug: Check if target_values are valid
-    print(string.format("COMPLETE_GLIDE DEBUG: target_values.q = %s", tostring(glide_state.target_values.q)))
-    print(string.format("COMPLETE_GLIDE DEBUG: glide_state.is_gliding = %s", tostring(glide_state.is_gliding)))
-
     if not glide_state.is_gliding then
-        print("ERROR: complete_glide called but not gliding, ignoring")
         return
     end
 
     if not glide_state.target_values.q then
-        print("ERROR: target_values.q is nil, aborting glide completion")
         glide_state.is_gliding = false
         return
     end
@@ -53,8 +47,11 @@ function Glide.complete_glide()
     grid_ui_state.current_matrix_pos.x = glide_state.target_pos.x
     grid_ui_state.current_matrix_pos.y = glide_state.target_pos.y
 
-    print(string.format("=== GLIDE END: reached (%d,%d) ===",
-        glide_state.target_pos.x, glide_state.target_pos.y))
+    -- Restart path playback metro if path is playing
+    if path_state.playing and path_state.playback_metro then
+        path_state.playback_metro:start(0.1)
+    end
+
 
     -- Redraw grid to show final position
     redraw_grid()
@@ -66,12 +63,10 @@ function Glide.update_glide_progress(elapsed, glide_time)
 
     -- Validate start_pos before calculation
     if not glide_state.start_pos.x or glide_state.start_pos.x ~= glide_state.start_pos.x then
-        print("ERROR: Invalid start_pos.x in metro, stopping glide")
         glide_state.is_gliding = false
         return
     end
     if not glide_state.start_pos.y or glide_state.start_pos.y ~= glide_state.start_pos.y then
-        print("ERROR: Invalid start_pos.y in metro, stopping glide")
         glide_state.is_gliding = false
         return
     end
@@ -118,16 +113,17 @@ end
 
 -- Update glide visuals
 function Glide.update_glide_visuals(progress)
+    -- Only draw glide animation on matrix screen
+    if grid_ui_state.grid_mode ~= 4 then
+        return
+    end
+
     -- Draw the current glide position directly on the grid
     local current_x = glide_state.start_pos.x +
         (glide_state.target_pos.x - glide_state.start_pos.x) * progress
     local current_y = glide_state.start_pos.y +
         (glide_state.target_pos.y - glide_state.start_pos.y) * progress
 
-    print(string.format("GLIDE CALC: start=(%.2f,%.2f) target=(%d,%d) progress=%.2f result=(%.2f,%.2f)",
-        glide_state.start_pos.x or -999, glide_state.start_pos.y or -999,
-        glide_state.target_pos.x, glide_state.target_pos.y,
-        progress, current_x or -999, current_y or -999))
 
     -- Clear previous sub-pixel LEDs
     Glide.clear_previous_glide_leds()
@@ -141,17 +137,22 @@ end
 
 -- Clear previous glide LEDs
 function Glide.clear_previous_glide_leds()
-    if glide_state.last_led_positions then
-        for _, pos in ipairs(glide_state.last_led_positions) do
-            if pos.x >= 1 and pos.x <= 16 and pos.y >= 1 and pos.y <= 16 then
-                grid_device:led(pos.x, pos.y, 2) -- Reset to background brightness
-            end
-        end
+    -- Only clear LEDs if we're in matrix mode
+    if grid_ui_state.grid_mode ~= 4 then
+        return
     end
+
+    -- Note: Grid clearing is now handled by the normal grid refresh metro
+    -- This function is kept for compatibility but doesn't directly write to grid
 end
 
 -- Draw sub-pixel interpolation
 function Glide.draw_sub_pixel_interpolation(current_x, current_y)
+    -- Only draw if we're in matrix mode
+    if grid_ui_state.grid_mode ~= 4 then
+        return
+    end
+
     -- Calculate 2x2 grid positions around the fractional coordinate
     local x_floor = math.floor(current_x)
     local y_floor = math.floor(current_y)
@@ -184,19 +185,22 @@ function Glide.draw_sub_pixel_interpolation(current_x, current_y)
             local brightness = math.floor(2 + pos.weight * 13 + 0.5)
             brightness = math.max(2, math.min(15, brightness))
 
-            grid_device:led(grid_x, grid_y, brightness)
+            -- Note: Grid drawing is now handled by the normal grid refresh metro
+            -- grid_device:led(grid_x, grid_y, brightness)
 
             -- Store for clearing next time
             table.insert(glide_state.last_led_positions, { x = grid_x, y = grid_y })
-
-            print(string.format("SUB-PIXEL: grid(%d,%d) weight=%.3f brightness=%d",
-                grid_x, grid_y, pos.weight, brightness))
         end
     end
 end
 
 -- Draw target indicator
 function Glide.draw_target_indicator()
+    -- Only draw if we're in matrix mode
+    if grid_ui_state.grid_mode ~= 4 then
+        return
+    end
+
     local target_led_x = glide_state.target_pos.x + 1
     local target_led_y = glide_state.target_pos.y + 1
     if target_led_x >= 1 and target_led_x <= 16 and target_led_y >= 1 and target_led_y <= 16 then
@@ -209,27 +213,21 @@ function Glide.draw_target_indicator()
             end
         end
         if not overlaps then
-            grid_device:led(target_led_x, target_led_y, 6) -- Dim target indicator
+            -- Note: Grid drawing is now handled by the normal grid refresh metro
+            -- grid_device:led(target_led_x, target_led_y, 6) -- Dim target indicator
         end
     end
 end
 
 -- Update glide grid display
 function Glide.update_glide_grid_display()
-    -- Draw path points ONLY if path mode is enabled AND we're in matrix mode
-    print(string.format("DEBUG GLIDE: grid_mode=%d, path_mode=%s, path_points=%d", grid_ui_state.grid_mode,
-        path_state.mode, #path_state.points))
-    if grid_ui_state.grid_mode == 4 and path_state.mode and #path_state.points > 0 then
-        for i, point in ipairs(path_state.points) do
-            local led_x = point.x + 1
-            local led_y = point.y + 1
-            local brightness = (i == path_state.current_point and path_state.playing) and 15 or 8
-            grid_device:led(led_x, led_y, brightness)
-        end
+    -- Only update if we're in matrix mode
+    if grid_ui_state.grid_mode ~= 4 then
+        return
     end
 
-    -- Force grid refresh to apply changes
-    grid_device:refresh()
+    -- Note: Grid drawing is now handled by the normal grid refresh metro
+    -- This function is kept for compatibility but doesn't directly write to grid
 end
 
 -- Getters

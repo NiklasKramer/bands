@@ -86,8 +86,6 @@ local function init_snapshots()
             snapshot.params[i].thresh = 0.0
         end
     end
-
-    print("Snapshots initialized with test data")
 end
 
 -- Store current parameters to snapshot
@@ -108,8 +106,6 @@ local function store_snapshot(snapshot_name)
             thresh = params:get(thresh_id)
         }
     end
-
-    print(string.format("Stored %s", snapshot.name))
 end
 
 -- Recall snapshot
@@ -128,12 +124,14 @@ local function recall_snapshot(snapshot_name)
         params:set(pan_id, snapshot.params[i].pan)
         params:set(thresh_id, snapshot.params[i].thresh)
     end
-
-    print(string.format("Recalled %s", snapshot.name))
 end
 
 -- Calculate blend weights for matrix position
 local function calculate_blend_weights(x, y)
+    -- Clamp coordinates to valid range
+    x = math.max(1, math.min(14, x))
+    y = math.max(1, math.min(14, y))
+
     local norm_x = (x - 1) / 13
     local norm_y = (y - 1) / 13
 
@@ -147,9 +145,7 @@ end
 
 -- Apply blended parameters to engine
 function apply_blend(x, y, old_x, old_y)
-    print(string.format("apply_blend called with x=%d, y=%d", x, y))
     local a_w, b_w, c_w, d_w = calculate_blend_weights(x, y)
-    print(string.format("Blend weights: A=%.2f B=%.2f C=%.2f D=%.2f", a_w, b_w, c_w, d_w))
 
     -- Calculate target values
     local target_values = {}
@@ -218,10 +214,6 @@ function apply_blend(x, y, old_x, old_y)
                     (glide_state.target_values[thresh_id] - glide_state.current_values[thresh_id]) * progress
             end
 
-            print(string.format("=== GLIDE INTERRUPTED: was %.1f%% complete, restarting from (%.2f,%.2f) to (%d,%d) ===",
-                progress * 100, current_x, current_y, x, y))
-            print(string.format("INTERRUPT: Setting last_led_pos to (%.2f,%.2f) -> (%d,%d)",
-                current_x, current_y, math.floor(current_x + 0.5), math.floor(current_y + 0.5)))
 
             -- Use current interpolated values as new starting point (ensure they're valid numbers)
             glide_state.start_pos.x = current_x or glide_state.start_pos.x
@@ -230,11 +222,9 @@ function apply_blend(x, y, old_x, old_y)
 
             -- Validate that start_pos contains valid numbers
             if not glide_state.start_pos.x or glide_state.start_pos.x ~= glide_state.start_pos.x then
-                print("ERROR: Invalid start_pos.x, using fallback")
                 glide_state.start_pos.x = grid_ui_state.current_matrix_pos.x
             end
             if not glide_state.start_pos.y or glide_state.start_pos.y ~= glide_state.start_pos.y then
-                print("ERROR: Invalid start_pos.y, using fallback")
                 glide_state.start_pos.y = grid_ui_state.current_matrix_pos.y
             end
 
@@ -243,8 +233,6 @@ function apply_blend(x, y, old_x, old_y)
             glide_state.last_led_pos.y = math.floor(current_y + 0.5)
         else
             -- NORMAL CASE: Start new glide
-            print(string.format("=== GLIDE START: from (%d,%d) to (%d,%d) ===",
-                old_x or grid_ui_state.current_matrix_pos.x, old_y or grid_ui_state.current_matrix_pos.y, x, y))
 
             glide_state.start_pos.x = old_x or grid_ui_state.current_matrix_pos.x
             glide_state.start_pos.y = old_y or grid_ui_state.current_matrix_pos.y
@@ -286,7 +274,6 @@ function apply_blend(x, y, old_x, old_y)
             params:set(thresh_id, target_values[thresh_id])
         end
     end
-    print("Matrix blend applied")
 end
 
 -- Switch to a snapshot
@@ -318,9 +305,8 @@ local function switch_to_snapshot(snapshot_name)
     apply_blend(grid_ui_state.current_matrix_pos.x, grid_ui_state.current_matrix_pos.y, old_x, old_y)
     params:set("glide", saved_glide_param) -- Restore glide setting
 
-    print(string.format("Switched to Snapshot %s", snapshot_name))
-    redraw() -- Update the screen to show the new snapshot
-    -- Grid will be updated by metro_grid_refresh
+    redraw()                               -- Update the screen to show the new snapshot
+    redraw_grid()                          -- Update the grid to show the new snapshot
 end
 
 
@@ -384,7 +370,8 @@ function init()
         metro = metro,
         util = util,
         params = params,
-        path_state = path_state
+        path_state = path_state,
+        glide_state = glide_state
     })
 
     glide_mod.init({
@@ -405,17 +392,13 @@ function init()
         calculate_blend_weights = calculate_blend_weights,
         path_state = path_state,
         glide_state = glide_state,
-        current_snapshot = current_snapshot
+        get_current_snapshot = function() return current_snapshot end
     })
 
     -- start grid refresh metro
     metro_grid_refresh = metro.init(function()
-        -- Only redraw grid if not gliding (glide metro handles grid during glide)
-        if not glide_state.is_gliding then
-            redraw_grid()
-        else
-            print("GRID REFRESH: Skipped during glide")
-        end
+        -- Always redraw grid - glide animation is drawn as part of normal grid drawing
+        redraw_grid()
     end, 1 / 60)
     metro_grid_refresh:start()
 
@@ -429,6 +412,7 @@ function init()
             if elapsed >= glide_time then
                 glide_mod.complete_glide()
             else
+                -- Update both parameters and visuals
                 glide_mod.update_glide_progress(elapsed, glide_time)
             end
         end
@@ -488,27 +472,28 @@ function redraw()
 
         -- Path mode status
         screen.move(64, 50)
-        screen.text_center(string.format("Path Mode: %s", path_mode and "ON" or "OFF"))
+        screen.text_center(string.format("Path Mode: %s", path_state.mode and "ON" or "OFF"))
 
         -- Path status
-        if path_mode then
+        if path_state.mode then
             screen.move(64, 60)
-            screen.text_center(string.format("Path: %d points", #path_points))
+            screen.text_center(string.format("Path: %d points", #path_state.points))
 
-            if path_playing then
+            if path_state.playing then
                 screen.move(64, 70)
-                screen.text_center(string.format("Playing: %d/%d", path_current_point, #path_points))
+                screen.text_center(string.format("Playing: %d/%d", path_state.current_point, #path_state.points))
             end
         end
     end
 
     -- Global Q value
-    local q_y = (grid_ui_state.grid_mode == 4) and (path_mode and (path_playing and 80 or 70) or 60) or 50
+    local q_y = (grid_ui_state.grid_mode == 4) and (path_state.mode and (path_state.playing and 80 or 70) or 60) or 50
     screen.move(64, q_y)
     screen.text_center(string.format("Q: %.2f", params:get("q")))
 
     -- Glide value
-    local glide_y = (grid_ui_state.grid_mode == 4) and (path_mode and (path_playing and 90 or 80) or 70) or 60
+    local glide_y = (grid_ui_state.grid_mode == 4) and (path_state.mode and (path_state.playing and 90 or 80) or 70) or
+        60
     screen.move(64, glide_y)
     screen.text_center(string.format("Glide: %.2fs", params:get("glide")))
 

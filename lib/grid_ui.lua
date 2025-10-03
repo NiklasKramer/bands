@@ -23,11 +23,9 @@ function GridUI.handle_matrix_control(ui_state, x, y, snapshot_functions)
     if x == 16 and y == 1 then
         -- Path mode toggle at position (16,1)
         snapshot_functions.toggle_path_mode()
-        print("Path mode toggled")
     elseif x == 1 and y == 1 then
         -- Path recording start/stop at position (1,1)
         snapshot_functions.toggle_path_recording()
-        print("Path recording toggled")
     elseif x >= 2 and x <= 15 and y >= 2 and y <= 15 then
         -- Store the old position before updating
         local old_x = ui_state.current_matrix_pos.x
@@ -49,7 +47,6 @@ function GridUI.handle_matrix_control(ui_state, x, y, snapshot_functions)
             -- Normal matrix movement
             snapshot_functions.apply_blend(ui_state.current_matrix_pos.x, ui_state.current_matrix_pos.y, old_x, old_y)
         end
-        print(string.format("matrix pos: %d,%d", ui_state.current_matrix_pos.x, ui_state.current_matrix_pos.y))
     end
 end
 
@@ -61,7 +58,6 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
         -- Shift + (16,16): Clear path
         if z == 1 and ui_state.shift_held and snapshot_functions.clear_path then
             snapshot_functions.clear_path()
-            print("Path cleared")
         end
 
         GridUI.redraw(ui_state)
@@ -72,8 +68,8 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
         if y == 16 then
             if x >= 1 and x <= 3 then
                 ui_state.grid_mode = x
-                print(string.format("mode: %s", snapshot_functions.get_mode_names()[ui_state.grid_mode]))
                 if redraw_screen_callback then redraw_screen_callback() end
+                if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
             elseif x == 7 then
                 snapshot_functions.switch_to_snapshot("A")
             elseif x == 8 then
@@ -84,8 +80,8 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                 snapshot_functions.switch_to_snapshot("D")
             elseif x == 14 then
                 ui_state.grid_mode = 4
-                print("mode: matrix")
                 if redraw_screen_callback then redraw_screen_callback() end
+                if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
             end
         elseif y >= 1 and y <= 15 then
             if ui_state.grid_mode == 4 then
