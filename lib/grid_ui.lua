@@ -71,13 +71,29 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                 if redraw_screen_callback then redraw_screen_callback() end
                 if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
             elseif x == 7 then
-                snapshot_functions.switch_to_snapshot("A")
+                if ui_state.shift_held then
+                    snapshot_functions.save_snapshot("A")
+                else
+                    snapshot_functions.switch_to_snapshot("A")
+                end
             elseif x == 8 then
-                snapshot_functions.switch_to_snapshot("B")
+                if ui_state.shift_held then
+                    snapshot_functions.save_snapshot("B")
+                else
+                    snapshot_functions.switch_to_snapshot("B")
+                end
             elseif x == 9 then
-                snapshot_functions.switch_to_snapshot("C")
+                if ui_state.shift_held then
+                    snapshot_functions.save_snapshot("C")
+                else
+                    snapshot_functions.switch_to_snapshot("C")
+                end
             elseif x == 10 then
-                snapshot_functions.switch_to_snapshot("D")
+                if ui_state.shift_held then
+                    snapshot_functions.save_snapshot("D")
+                else
+                    snapshot_functions.switch_to_snapshot("D")
+                end
             elseif x == 14 then
                 ui_state.grid_mode = 4
                 if redraw_screen_callback then redraw_screen_callback() end
@@ -89,11 +105,17 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
             else
                 local helper = include 'lib/helper'
                 if ui_state.grid_mode == 1 then
-                    helper.handle_level_mode(x, y, ui_state.shift_held, snapshot_functions.get_freqs())
+                    helper.handle_level_mode(x, y, ui_state.shift_held, snapshot_functions.get_freqs(),
+                        snapshot_functions.save_snapshot, snapshot_functions.get_current_snapshot(),
+                        snapshot_functions.get_current_state())
                 elseif ui_state.grid_mode == 2 then
-                    helper.handle_pan_mode(x, y, ui_state.shift_held, snapshot_functions.get_freqs())
+                    helper.handle_pan_mode(x, y, ui_state.shift_held, snapshot_functions.get_freqs(),
+                        snapshot_functions.save_snapshot, snapshot_functions.get_current_snapshot(),
+                        snapshot_functions.get_current_state())
                 elseif ui_state.grid_mode == 3 then
-                    helper.handle_threshold_mode(x, y, ui_state.shift_held, snapshot_functions.get_freqs())
+                    helper.handle_threshold_mode(x, y, ui_state.shift_held, snapshot_functions.get_freqs(),
+                        snapshot_functions.save_snapshot, snapshot_functions.get_current_snapshot(),
+                        snapshot_functions.get_current_state())
                 end
             end
         end

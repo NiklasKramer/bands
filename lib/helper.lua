@@ -39,37 +39,79 @@ function Helper.threshold_to_row(thresh)
 end
 
 -- Set parameter for a single band or all bands
-function Helper.set_band_param(band_idx, param_type, value, shift_held, freqs, format_str)
+function Helper.set_band_param(band_idx, param_type, value, shift_held, freqs, format_str, save_to_snapshot,
+                               current_snapshot, current_state)
     format_str = format_str or "%.2f"
     if shift_held then
         -- set all bands
         for i = 1, #freqs do
-            local param_id = string.format("band_%02d_%s", i, param_type)
-            params:set(param_id, value)
+            -- Set engine parameter directly
+            if param_type == "level" and engine.level then
+                engine.level(i, value)
+            elseif param_type == "pan" and engine.pan then
+                engine.pan(i, value)
+            elseif param_type == "thresh" and engine.thresh_band then
+                engine.thresh_band(i, value)
+            end
+
+            -- Update current_state for display
+            if current_state and current_state.bands and current_state.bands[i] then
+                if param_type == "level" then
+                    current_state.bands[i].level = value
+                elseif param_type == "pan" then
+                    current_state.bands[i].pan = value
+                elseif param_type == "thresh" then
+                    current_state.bands[i].thresh = value
+                end
+            end
         end
         print(string.format("all bands: set %s to " .. format_str, param_type, value))
     else
         -- set single band
-        local param_id = string.format("band_%02d_%s", band_idx, param_type)
-        params:set(param_id, value)
+        if param_type == "level" and engine.level then
+            engine.level(band_idx, value)
+        elseif param_type == "pan" and engine.pan then
+            engine.pan(band_idx, value)
+        elseif param_type == "thresh" and engine.thresh_band then
+            engine.thresh_band(band_idx, value)
+        end
+
+        -- Update current_state for display
+        if current_state and current_state.bands and current_state.bands[band_idx] then
+            if param_type == "level" then
+                current_state.bands[band_idx].level = value
+            elseif param_type == "pan" then
+                current_state.bands[band_idx].pan = value
+            elseif param_type == "thresh" then
+                current_state.bands[band_idx].thresh = value
+            end
+        end
         print(string.format("band %d: set %s to " .. format_str, band_idx, param_type, value))
+    end
+
+    -- Auto-save to current snapshot if requested
+    if save_to_snapshot and current_snapshot then
+        save_to_snapshot(current_snapshot)
     end
 end
 
 -- Mode-specific handlers
-function Helper.handle_level_mode(band_idx, y, shift_held, freqs)
+function Helper.handle_level_mode(band_idx, y, shift_held, freqs, save_to_snapshot, current_snapshot, current_state)
     local level_db = Helper.row_to_level_db(y)
-    Helper.set_band_param(band_idx, "level", level_db, shift_held, freqs, "%.1f dB")
+    Helper.set_band_param(band_idx, "level", level_db, shift_held, freqs, "%.1f dB", save_to_snapshot, current_snapshot,
+        current_state)
 end
 
-function Helper.handle_pan_mode(band_idx, y, shift_held, freqs)
+function Helper.handle_pan_mode(band_idx, y, shift_held, freqs, save_to_snapshot, current_snapshot, current_state)
     local pan = Helper.row_to_pan(y)
-    Helper.set_band_param(band_idx, "pan", pan, shift_held, freqs, "%.2f")
+    Helper.set_band_param(band_idx, "pan", pan, shift_held, freqs, "%.2f", save_to_snapshot, current_snapshot,
+        current_state)
 end
 
-function Helper.handle_threshold_mode(band_idx, y, shift_held, freqs)
+function Helper.handle_threshold_mode(band_idx, y, shift_held, freqs, save_to_snapshot, current_snapshot, current_state)
     local thresh = Helper.row_to_threshold(y)
-    Helper.set_band_param(band_idx, "thresh", thresh, shift_held, freqs, "%.2f")
+    Helper.set_band_param(band_idx, "thresh", thresh, shift_held, freqs, "%.2f", save_to_snapshot, current_snapshot,
+        current_state)
 end
 
 -- UI handlers

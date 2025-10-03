@@ -22,22 +22,24 @@ function Glide.complete_glide()
         return
     end
 
-    -- Set final parameter values
-    params:set("q", glide_state.target_values.q)
+    -- Set final parameter values directly to engine
+    if engine and engine.q then
+        engine.q(glide_state.target_values.q)
+    end
     for i = 1, #freqs do
         local level_id = string.format("band_%02d_level", i)
         local pan_id = string.format("band_%02d_pan", i)
         local thresh_id = string.format("band_%02d_thresh", i)
 
-        -- Check if values exist before setting
-        if glide_state.target_values[level_id] then
-            params:set(level_id, glide_state.target_values[level_id])
+        -- Set engine parameters directly
+        if glide_state.target_values[level_id] and engine and engine.level then
+            engine.level(i, glide_state.target_values[level_id])
         end
-        if glide_state.target_values[pan_id] then
-            params:set(pan_id, glide_state.target_values[pan_id])
+        if glide_state.target_values[pan_id] and engine and engine.pan then
+            engine.pan(i, glide_state.target_values[pan_id])
         end
-        if glide_state.target_values[thresh_id] then
-            params:set(thresh_id, glide_state.target_values[thresh_id])
+        if glide_state.target_values[thresh_id] and engine and engine.thresh_band then
+            engine.thresh_band(i, glide_state.target_values[thresh_id])
         end
     end
 
@@ -87,6 +89,9 @@ function Glide.update_glide_parameters(progress)
         (glide_state.target_values.q - glide_state.current_values.q) * progress
     params:set("q", current_q)
 
+    -- Update current state
+    current_state.q = current_q
+
     -- Update matrix position during glide
     grid_ui_state.current_matrix_pos.x = glide_state.start_pos.x +
         (glide_state.target_pos.x - glide_state.start_pos.x) * progress
@@ -105,9 +110,21 @@ function Glide.update_glide_parameters(progress)
         local current_thresh = glide_state.current_values[thresh_id] +
             (glide_state.target_values[thresh_id] - glide_state.current_values[thresh_id]) * progress
 
-        params:set(level_id, current_level)
-        params:set(pan_id, current_pan)
-        params:set(thresh_id, current_thresh)
+        -- Set engine parameters directly
+        if engine and engine.level then
+            engine.level(i, current_level)
+        end
+        if engine and engine.pan then
+            engine.pan(i, current_pan)
+        end
+        if engine and engine.thresh_band then
+            engine.thresh_band(i, current_thresh)
+        end
+
+        -- Update current state
+        current_state.bands[i].level = current_level
+        current_state.bands[i].pan = current_pan
+        current_state.bands[i].thresh = current_thresh
     end
 end
 
