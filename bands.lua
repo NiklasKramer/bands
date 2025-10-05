@@ -30,11 +30,7 @@ local band_meters = {}
 local band_meter_polls
 local grid_ui_state
 
--- Current state (what's actually controlling the engine)
-local current_state = {
-    q = 1.0,
-    bands = {}
-}
+-- Current state is now managed by the params system
 
 -- Glide state
 local glide_state = {
@@ -71,14 +67,17 @@ local current_snapshot = "A"
 -- Initialize current state from the current snapshot
 local function init_current_state()
     -- Initialize from current snapshot (A by default)
-    current_state.q = params:get("snapshot_a_q")
-    current_state.bands = {}
+    params:set("q", params:get("snapshot_a_q"))
+
     for i = 1, #freqs do
-        current_state.bands[i] = {
-            level = params:get(string.format("snapshot_a_%02d_level", i)),
-            pan = params:get(string.format("snapshot_a_%02d_pan", i)),
-            thresh = params:get(string.format("snapshot_a_%02d_thresh", i))
-        }
+        local level = params:get(string.format("snapshot_a_%02d_level", i))
+        local pan = params:get(string.format("snapshot_a_%02d_pan", i))
+        local thresh = params:get(string.format("snapshot_a_%02d_thresh", i))
+
+        -- Initialize hidden band parameters
+        params:set(string.format("band_%02d_level", i), level)
+        params:set(string.format("band_%02d_pan", i), pan)
+        params:set(string.format("band_%02d_thresh", i), thresh)
     end
 end
 
@@ -92,16 +91,16 @@ end
 -- Store current state to snapshot
 local function store_snapshot(snapshot_name)
     -- Store to Norns params for persistence
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_q", current_state.q)
+    params:set("snapshot_" .. string.lower(snapshot_name) .. "_q", params:get("q"))
 
     for i = 1, #freqs do
         local level_id = string.format("snapshot_%s_%02d_level", string.lower(snapshot_name), i)
         local pan_id = string.format("snapshot_%s_%02d_pan", string.lower(snapshot_name), i)
         local thresh_id = string.format("snapshot_%s_%02d_thresh", string.lower(snapshot_name), i)
 
-        params:set(level_id, current_state.bands[i].level)
-        params:set(pan_id, current_state.bands[i].pan)
-        params:set(thresh_id, current_state.bands[i].thresh)
+        params:set(level_id, params:get(string.format("band_%02d_level", i)))
+        params:set(pan_id, params:get(string.format("band_%02d_pan", i)))
+        params:set(thresh_id, params:get(string.format("band_%02d_thresh", i)))
     end
 end
 
@@ -112,11 +111,9 @@ end
 
 -- Recall snapshot
 local function recall_snapshot(snapshot_name)
-    -- Read from Norns params
+    -- Read from Norns params and update current state
     local snapshot_q = params:get("snapshot_" .. string.lower(snapshot_name) .. "_q")
-
-    -- Update current state from snapshot params
-    current_state.q = snapshot_q
+    params:set("q", snapshot_q)
 
     for i = 1, #freqs do
         local level_id = string.format("snapshot_%s_%02d_level", string.lower(snapshot_name), i)
@@ -127,23 +124,10 @@ local function recall_snapshot(snapshot_name)
         local pan_val = params:get(pan_id)
         local thresh_val = params:get(thresh_id)
 
-        current_state.bands[i].level = level_val
-        current_state.bands[i].pan = pan_val
-        current_state.bands[i].thresh = thresh_val
-
-        -- Apply to engine directly
-        if engine and engine.level then
-            engine.level(i, level_val)
-        end
-        if engine and engine.pan then
-            engine.pan(i, pan_val)
-        end
-        if engine and engine.thresh_band then
-            engine.thresh_band(i, thresh_val)
-        end
-    end
-    if engine and engine.q then
-        engine.q(snapshot_q)
+        -- Update hidden band parameters (this will update the engine automatically)
+        params:set(string.format("band_%02d_level", i), level_val)
+        params:set(string.format("band_%02d_pan", i), pan_val)
+        params:set(string.format("band_%02d_thresh", i), thresh_val)
     end
 end
 
@@ -260,15 +244,15 @@ function apply_blend(x, y, old_x, old_y)
 
             -- Store current parameter values as starting point
             glide_state.current_values = {}
-            glide_state.current_values.q = current_state.q
+            glide_state.current_values.q = params:get("q")
             for i = 1, #freqs do
                 local level_id = string.format("band_%02d_level", i)
                 local pan_id = string.format("band_%02d_pan", i)
                 local thresh_id = string.format("band_%02d_thresh", i)
 
-                glide_state.current_values[level_id] = current_state.bands[i].level
-                glide_state.current_values[pan_id] = current_state.bands[i].pan
-                glide_state.current_values[thresh_id] = current_state.bands[i].thresh
+                glide_state.current_values[level_id] = params:get(level_id)
+                glide_state.current_values[pan_id] = params:get(pan_id)
+                glide_state.current_values[thresh_id] = params:get(thresh_id)
             end
 
             -- Initialize last LED position to start position
@@ -283,30 +267,16 @@ function apply_blend(x, y, old_x, old_y)
         glide_state.glide_time = util.time() -- Reset glide start time
         glide_state.is_gliding = true
     else
-        -- Apply immediately to current state
-        current_state.q = target_values.q
+        -- Apply immediately to params (this will update the engine automatically)
+        params:set("q", target_values.q)
         for i = 1, #freqs do
             local level_id = string.format("band_%02d_level", i)
             local pan_id = string.format("band_%02d_pan", i)
             local thresh_id = string.format("band_%02d_thresh", i)
 
-            current_state.bands[i].level = target_values[level_id]
-            current_state.bands[i].pan = target_values[pan_id]
-            current_state.bands[i].thresh = target_values[thresh_id]
-
-            -- Apply to engine directly
-            if engine and engine.level then
-                engine.level(i, target_values[level_id])
-            end
-            if engine and engine.pan then
-                engine.pan(i, target_values[pan_id])
-            end
-            if engine and engine.thresh_band then
-                engine.thresh_band(i, target_values[thresh_id])
-            end
-        end
-        if engine and engine.q then
-            engine.q(target_values.q)
+            params:set(level_id, target_values[level_id])
+            params:set(pan_id, target_values[pan_id])
+            params:set(thresh_id, target_values[thresh_id])
         end
 
         -- Auto-save changes to current snapshot
@@ -432,7 +402,6 @@ function init()
         calculate_blend_weights = calculate_blend_weights,
         path_state = path_state,
         glide_state = glide_state,
-        current_state = current_state,
         get_current_snapshot = function() return current_snapshot end
     })
 
@@ -481,7 +450,6 @@ function grid.key(x, y, z)
         clear_path = path_mod.clear_path,
         get_path_mode = path_mod.get_path_mode,
         get_current_snapshot = function() return current_snapshot end,
-        get_current_state = function() return current_state end,
         get_freqs = function() return freqs end,
         get_mode_names = function() return mode_names end,
         get_band_meters = function() return band_meters end,
@@ -532,7 +500,7 @@ function redraw()
     -- Global Q value
     local q_y = (grid_ui_state.grid_mode == 4) and (path_state.mode and (path_state.playing and 80 or 70) or 60) or 50
     screen.move(64, q_y)
-    screen.text_center(string.format("Q: %.2f", current_state.q))
+    screen.text_center(string.format("Q: %.2f", params:get("q")))
 
     -- Glide value
     local glide_y = (grid_ui_state.grid_mode == 4) and (path_state.mode and (path_state.playing and 90 or 80) or 70) or
@@ -586,15 +554,7 @@ end
 function add_params()
     local num = #freqs
 
-    -- Initialize current_state.bands before setting up parameters
-    current_state.bands = {}
-    for i = 1, num do
-        current_state.bands[i] = {
-            level = -12.0,
-            pan = 0.0,
-            thresh = 0.0
-        }
-    end
+    -- Current state is now managed by the params system
 
     -- global controls
     params:add_group("global", 1)
@@ -606,7 +566,6 @@ function add_params()
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(q)
             if engine and engine.q then engine.q(q) end
-            current_state.q = q
             -- Also update current snapshot params
             local snapshot_q_id = string.format("snapshot_%s_q", string.lower(current_snapshot))
             params:set(snapshot_q_id, q)
@@ -621,9 +580,42 @@ function add_params()
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
 
-    -- Individual band parameters are not in params menu since they represent
-    -- the current live state (blend of snapshots + matrix position)
-    -- They are controlled via the grid interface and matrix blending
+    -- Individual band parameters for current state (hidden from UI)
+    for i = 1, num do
+        params:add {
+            type = "control",
+            id = string.format("band_%02d_level", i),
+            name = string.format("Band %02d Level", i),
+            controlspec = controlspec.new(-60, 12, 'lin', 0.1, -12, 'dB'),
+            formatter = function(p) return string.format("%.1f dB", p:get()) end,
+            hidden = true,
+            action = function(level)
+                if engine and engine.level then engine.level(i, level) end
+            end
+        }
+        params:add {
+            type = "control",
+            id = string.format("band_%02d_pan", i),
+            name = string.format("Band %02d Pan", i),
+            controlspec = controlspec.new(-1, 1, 'lin', 0.01, 0),
+            formatter = function(p) return string.format("%.2f", p:get()) end,
+            hidden = true,
+            action = function(pan)
+                if engine and engine.pan then engine.pan(i, pan) end
+            end
+        }
+        params:add {
+            type = "control",
+            id = string.format("band_%02d_thresh", i),
+            name = string.format("Band %02d Thresh", i),
+            controlspec = controlspec.new(-60, 12, 'lin', 0.1, 0, 'dB'),
+            formatter = function(p) return string.format("%.1f dB", p:get()) end,
+            hidden = true,
+            action = function(thresh)
+                if engine and engine.thresh_band then engine.thresh_band(i, thresh) end
+            end
+        }
+    end
 
     -- Add snapshot parameters for persistence
     -- Snapshot A

@@ -9,7 +9,6 @@ local params
 local calculate_blend_weights
 local path_state
 local glide_state
-local current_state
 local get_current_snapshot
 
 -- Draw band controls (levels, pans, thresholds)
@@ -34,7 +33,7 @@ end
 function GridDraw.draw_parameter_indicators(g, col, i)
     if grid_ui_state.grid_mode == 1 then
         -- Get level from current state (passed as dependency)
-        local level_db = current_state.bands[i].level
+        local level_db = params:get(string.format("band_%02d_level", i))
         local level_y = util.round((6 - level_db) * 14 / 66 + 1)
         level_y = util.clamp(level_y, 1, 15)
         for y = level_y, 15 do
@@ -42,13 +41,13 @@ function GridDraw.draw_parameter_indicators(g, col, i)
         end
     elseif grid_ui_state.grid_mode == 2 then
         -- Get pan from current state (passed as dependency)
-        local pan = current_state.bands[i].pan
+        local pan = params:get(string.format("band_%02d_pan", i))
         local pan_y = util.round(pan * 7 + 8)
         pan_y = util.clamp(pan_y, 1, 15)
         g:led(col, pan_y, 4)
     elseif grid_ui_state.grid_mode == 3 then
         -- Get threshold from current state (passed as dependency)
-        local thresh = current_state.bands[i].thresh
+        local thresh = params:get(string.format("band_%02d_thresh", i))
         local thresh_y = util.round((1 - thresh) * 14 + 1)
         thresh_y = util.clamp(thresh_y, 1, 15)
         g:led(col, thresh_y, 4)
@@ -258,7 +257,6 @@ function GridDraw.init(deps)
     calculate_blend_weights = deps.calculate_blend_weights
     path_state = deps.path_state
     glide_state = deps.glide_state
-    current_state = deps.current_state
     get_current_snapshot = deps.get_current_snapshot
 end
 

@@ -87,10 +87,9 @@ end
 function Glide.update_glide_parameters(progress)
     local current_q = glide_state.current_values.q +
         (glide_state.target_values.q - glide_state.current_values.q) * progress
-    params:set("q", current_q)
 
-    -- Update current state
-    current_state.q = current_q
+    -- Update params (this will update the engine automatically)
+    params:set("q", current_q)
 
     -- Update matrix position during glide
     grid_ui_state.current_matrix_pos.x = glide_state.start_pos.x +
@@ -110,21 +109,10 @@ function Glide.update_glide_parameters(progress)
         local current_thresh = glide_state.current_values[thresh_id] +
             (glide_state.target_values[thresh_id] - glide_state.current_values[thresh_id]) * progress
 
-        -- Set engine parameters directly
-        if engine and engine.level then
-            engine.level(i, current_level)
-        end
-        if engine and engine.pan then
-            engine.pan(i, current_pan)
-        end
-        if engine and engine.thresh_band then
-            engine.thresh_band(i, current_thresh)
-        end
-
-        -- Update current state
-        current_state.bands[i].level = current_level
-        current_state.bands[i].pan = current_pan
-        current_state.bands[i].thresh = current_thresh
+        -- Update params (this will update the engine automatically)
+        params:set(string.format("band_%02d_level", i), current_level)
+        params:set(string.format("band_%02d_pan", i), current_pan)
+        params:set(string.format("band_%02d_thresh", i), current_thresh)
     end
 end
 

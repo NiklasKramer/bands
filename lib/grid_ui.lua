@@ -106,16 +106,13 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                 local helper = include 'lib/helper'
                 if ui_state.grid_mode == 1 then
                     helper.handle_level_mode(x, y, ui_state.shift_held, snapshot_functions.get_freqs(),
-                        snapshot_functions.save_snapshot, snapshot_functions.get_current_snapshot(),
-                        snapshot_functions.get_current_state())
+                        snapshot_functions.save_snapshot, snapshot_functions.get_current_snapshot())
                 elseif ui_state.grid_mode == 2 then
                     helper.handle_pan_mode(x, y, ui_state.shift_held, snapshot_functions.get_freqs(),
-                        snapshot_functions.save_snapshot, snapshot_functions.get_current_snapshot(),
-                        snapshot_functions.get_current_state())
+                        snapshot_functions.save_snapshot, snapshot_functions.get_current_snapshot())
                 elseif ui_state.grid_mode == 3 then
                     helper.handle_threshold_mode(x, y, ui_state.shift_held, snapshot_functions.get_freqs(),
-                        snapshot_functions.save_snapshot, snapshot_functions.get_current_snapshot(),
-                        snapshot_functions.get_current_state())
+                        snapshot_functions.save_snapshot, snapshot_functions.get_current_snapshot())
                 end
             end
         end
