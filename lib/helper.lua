@@ -15,8 +15,8 @@ function Helper.row_to_pan(y)
 end
 
 function Helper.row_to_threshold(y)
-    -- row 1 = 1.0, row 15 = 0.0
-    return 1 - ((y - 1) / 14)
+    -- row 1 = 0.0, row 15 = 1.0
+    return (y - 1) / 14
 end
 
 -- Conversion functions: parameter value to row
@@ -33,8 +33,8 @@ function Helper.pan_to_row(pan)
 end
 
 function Helper.threshold_to_row(thresh)
-    -- inverse of: thresh = 1 - ((y - 1) / 14)
-    local thresh_y = util.round((1 - thresh) * 14 + 1)
+    -- inverse of: thresh = (y - 1) / 14
+    local thresh_y = util.round(thresh * 14 + 1)
     return util.clamp(thresh_y, 1, 15)
 end
 
@@ -74,9 +74,10 @@ function Helper.set_band_param(band_idx, param_type, value, shift_held, freqs, f
 end
 
 -- Mode-specific handlers
-function Helper.handle_level_mode(band_idx, y, shift_held, freqs, save_to_snapshot, current_snapshot)
+function Helper.handle_level_mode(band_idx, y, shift_held, freqs, save_to_snapshot, current_snapshot, set_selected_band)
     local level_db = Helper.row_to_level_db(y)
     Helper.set_band_param(band_idx, "level", level_db, shift_held, freqs, "%.1f dB", save_to_snapshot, current_snapshot)
+    if set_selected_band then set_selected_band(band_idx) end
 end
 
 function Helper.handle_pan_mode(band_idx, y, shift_held, freqs, save_to_snapshot, current_snapshot)

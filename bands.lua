@@ -18,6 +18,7 @@ local util = require 'util'
 -- forward declarations
 local metro_grid_refresh
 local metro_glide
+local metro_screen_refresh
 
 -- state
 local freqs = {
@@ -29,8 +30,16 @@ local mode_names = { "levels", "pans", "thresholds", "matrix" }
 local band_meters = {}
 local band_meter_polls
 local grid_ui_state
+local selected_band = 1 -- Currently selected band (1-16)
 
 -- Current state is now managed by the params system
+
+-- Update selected band
+local function set_selected_band(band)
+    if band >= 1 and band <= #freqs then
+        selected_band = band
+    end
+end
 
 -- Glide state
 local glide_state = {
@@ -369,7 +378,7 @@ function init()
         local thresh_id = string.format("band_%02d_thresh", i)
         glide_state.target_values[level_id] = 0.0
         glide_state.target_values[pan_id] = 0.0
-        glide_state.target_values[thresh_id] = 0.5
+        glide_state.target_values[thresh_id] = 0.0
     end
 
     -- initialize modules with dependencies
@@ -412,6 +421,12 @@ function init()
     end, 1 / 60)
     metro_grid_refresh:start()
 
+    -- start screen refresh metro
+    metro_screen_refresh = metro.init(function()
+        redraw()
+    end, 1 / 60) -- 60fps for smooth updates
+    metro_screen_refresh:start()
+
     -- start glide metro
     metro_glide = metro.init(function()
         if glide_state.is_gliding then
@@ -453,6 +468,7 @@ function grid.key(x, y, z)
         get_freqs = function() return freqs end,
         get_mode_names = function() return mode_names end,
         get_band_meters = function() return band_meters end,
+        set_selected_band = set_selected_band,
         redraw_grid = redraw_grid
     })
 end
@@ -462,63 +478,207 @@ function redraw()
     screen.clear()
     screen.level(15)
 
-    -- Title
-    screen.move(64, 10)
-    screen.text_center("BANDS")
+    -- Mode-specific screens
+    if grid_ui_state.grid_mode == 1 then
+        -- No text on levels screen - pure visual meters
+        -- Levels screen - Visual meters
+        local num_bands = math.min(16, #freqs)
+        local meter_width = 3
+        local meter_spacing = 5
+        local start_x = 8
+        local meter_height = 50
+        local meter_y = 5 -- Move meters higher
 
-    -- Current mode
-    screen.move(64, 20)
-    screen.text_center(mode_names[grid_ui_state.grid_mode])
+        for i = 1, num_bands do
+            local x = start_x + (i - 1) * meter_spacing
+            local meter_v = band_meters[i] or 0
+            local level_db = params:get(string.format("band_%02d_level", i))
 
-    -- Current snapshot
-    screen.move(64, 30)
-    screen.text_center("Snapshot: " .. current_snapshot)
+            -- Convert level to meter height (0-50 pixels)
+            local level_height = math.max(0, (level_db + 60) * 50 / 72) -- -60dB to +12dB range
 
-    -- Matrix position (if in matrix mode)
-    if grid_ui_state.grid_mode == 4 then
-        screen.move(64, 40)
-        screen.text_center(string.format("Matrix: %d,%d",
-            grid_ui_state.current_matrix_pos.x,
-            grid_ui_state.current_matrix_pos.y))
+            -- Convert audio meter value to dB, then to height
+            local meter_db = 0
+            if meter_v > 0 then
+                meter_db = 20 * math.log10(meter_v) -- Convert linear to dB
+            else
+                meter_db = -60                      -- Silent
+            end
+            local peak_height = math.max(0, (meter_db + 60) * 50 / 72)
 
-        -- Path mode status
-        screen.move(64, 50)
-        screen.text_center(string.format("Path Mode: %s", path_state.mode and "ON" or "OFF"))
+            -- Draw meter background (dark)
+            screen.level(2)
+            screen.rect(x, meter_y, meter_width, meter_height)
+            screen.fill()
 
-        -- Path status
-        if path_state.mode then
-            screen.move(64, 60)
-            screen.text_center(string.format("Path: %d points", #path_state.points))
+            -- Draw level indicator (green) - always show this
+            screen.level(8)
+            screen.rect(x, meter_y + meter_height - level_height, meter_width, level_height)
+            screen.fill()
 
-            if path_state.playing then
-                screen.move(64, 70)
-                screen.text_center(string.format("Playing: %d/%d", path_state.current_point, #path_state.points))
+            -- Draw meter peak (bright) - show even if no audio
+            screen.level(15)
+            if peak_height > 0 then
+                screen.rect(x, meter_y + meter_height - peak_height, meter_width, peak_height)
+                screen.fill()
+            else
+                -- Show a small indicator even when no audio
+                screen.rect(x, meter_y + meter_height - 2, meter_width, 2)
+                screen.fill()
             end
         end
-    end
 
-    -- Global Q value
-    local q_y = (grid_ui_state.grid_mode == 4) and (path_state.mode and (path_state.playing and 80 or 70) or 60) or 50
-    screen.move(64, q_y)
-    screen.text_center(string.format("Q: %.2f", params:get("q")))
-
-    -- Glide value
-    local glide_y = (grid_ui_state.grid_mode == 4) and (path_state.mode and (path_state.playing and 90 or 80) or 70) or
-        60
-    screen.move(64, glide_y)
-    screen.text_center(string.format("Glide: %.2fs", params:get("glide")))
-
-    -- Instructions
-    screen.level(8)
-    screen.move(64, 70)
-    if grid_ui_state.grid_mode == 1 then
-        screen.text_center("Adjust levels")
+        -- Draw cursor below selected band
+        if selected_band >= 1 and selected_band <= num_bands then
+            local cursor_x = start_x + (selected_band - 1) * meter_spacing
+            screen.level(15)
+            screen.rect(cursor_x, meter_y + meter_height + 5, meter_width, 3)
+            screen.fill()
+        end
     elseif grid_ui_state.grid_mode == 2 then
-        screen.text_center("Adjust pans")
+        -- Pans screen - Visual pan indicators
+        local num_bands = math.min(16, #freqs)
+        local indicator_width = 3
+        local indicator_spacing = 5
+        local start_x = 8
+        local indicator_height = 50
+        local indicator_y = 5
+
+        for i = 1, num_bands do
+            local x = start_x + (i - 1) * indicator_spacing
+            local pan = params:get(string.format("band_%02d_pan", i))
+
+            -- Convert pan (-1 to 1) to position (0 to indicator_height)
+            -- Invert so left pan (-1) is at top, right pan (+1) is at bottom
+            local pan_position = (1 - pan) * indicator_height / 2
+            pan_position = math.max(0, math.min(indicator_height, pan_position))
+
+            -- Draw background line
+            screen.level(2)
+            screen.rect(x, indicator_y, indicator_width, indicator_height)
+            screen.fill()
+
+            -- Draw center line
+            screen.level(4)
+            screen.rect(x, indicator_y + indicator_height / 2 - 1, indicator_width, 2)
+            screen.fill()
+
+            -- Draw pan indicator
+            screen.level(15)
+            screen.rect(x, indicator_y + indicator_height - pan_position - 2, indicator_width, 4)
+            screen.fill()
+        end
+
+        -- Draw cursor below selected band
+        if selected_band >= 1 and selected_band <= num_bands then
+            local cursor_x = start_x + (selected_band - 1) * indicator_spacing
+            screen.level(15)
+            screen.rect(cursor_x, indicator_y + indicator_height + 5, indicator_width, 3)
+            screen.fill()
+        end
     elseif grid_ui_state.grid_mode == 3 then
-        screen.text_center("Adjust thresholds")
+        -- Thresholds screen - Visual threshold indicators
+        local num_bands = math.min(16, #freqs)
+        local indicator_width = 3
+        local indicator_spacing = 5
+        local start_x = 8
+        local indicator_height = 50
+        local indicator_y = 5
+
+        for i = 1, num_bands do
+            local x = start_x + (i - 1) * indicator_spacing
+            local thresh = params:get(string.format("band_%02d_thresh", i))
+
+            -- Convert threshold (0.0 to 1.0) to position (0 to indicator_height)
+            -- Higher thresholds appear higher on screen
+            local thresh_position = thresh * indicator_height
+            thresh_position = math.max(0, math.min(indicator_height, thresh_position))
+
+            -- Draw background line
+            screen.level(2)
+            screen.rect(x, indicator_y, indicator_width, indicator_height)
+            screen.fill()
+
+            -- Draw threshold indicator
+            screen.level(15)
+            screen.rect(x, indicator_y + thresh_position - 2, indicator_width, 4)
+            screen.fill()
+        end
+
+        -- Draw cursor below selected band
+        if selected_band >= 1 and selected_band <= num_bands then
+            local cursor_x = start_x + (selected_band - 1) * indicator_spacing
+            screen.level(15)
+            screen.rect(cursor_x, indicator_y + indicator_height + 5, indicator_width, 3)
+            screen.fill()
+        end
     elseif grid_ui_state.grid_mode == 4 then
-        screen.text_center("Blend snapshots")
+        -- Matrix screen - Visual matrix display
+        local matrix_size = 14
+        local cell_size = 4
+        local start_x = 8
+        local start_y = 8
+
+        -- Draw matrix grid
+        for x = 1, matrix_size do
+            for y = 1, matrix_size do
+                local cell_x = start_x + (x - 1) * cell_size
+                local cell_y = start_y + (y - 1) * cell_size
+
+                -- Current position indicator
+                if x == grid_ui_state.current_matrix_pos.x and y == grid_ui_state.current_matrix_pos.y then
+                    screen.level(15) -- Bright white for current position
+                else
+                    screen.level(2)  -- Dark for other positions
+                end
+
+                screen.rect(cell_x, cell_y, cell_size - 1, cell_size - 1)
+                screen.fill()
+            end
+        end
+
+        -- Draw path points if in path mode
+        if path_state.mode and #path_state.points > 0 then
+            screen.level(8) -- Medium brightness for path points
+            for i, point in ipairs(path_state.points) do
+                local cell_x = start_x + (point.x - 1) * cell_size
+                local cell_y = start_y + (point.y - 1) * cell_size
+                screen.rect(cell_x, cell_y, cell_size - 1, cell_size - 1)
+                screen.fill()
+            end
+        end
+
+        -- Draw glide animation if active
+        if glide_state.is_gliding then
+            -- Calculate current glide position with sub-pixel interpolation
+            local current_time = util.time()
+            local elapsed = current_time - glide_state.glide_time
+            local glide_time = params:get("glide")
+            local progress = math.min(1, elapsed / glide_time)
+
+            -- Interpolate between start and target positions
+            local current_x = glide_state.start_pos.x + (glide_state.target_pos.x - glide_state.start_pos.x) * progress
+            local current_y = glide_state.start_pos.y + (glide_state.target_pos.y - glide_state.start_pos.y) * progress
+
+            -- Draw current glide position
+            local glide_x = start_x + (current_x - 1) * cell_size
+            local glide_y = start_y + (current_y - 1) * cell_size
+
+            -- Bright pulsing effect for glide position
+            local pulse = math.sin(util.time() * 10) * 0.5 + 0.5 -- 0 to 1 pulse
+            screen.level(8 + math.floor(pulse * 7))              -- 8 to 15 brightness
+            screen.rect(glide_x, glide_y, cell_size - 1, cell_size - 1)
+            screen.fill()
+
+            -- Draw target position
+            if glide_state.target_pos then
+                local target_x = start_x + (glide_state.target_pos.x - 1) * cell_size
+                local target_y = start_y + (glide_state.target_pos.y - 1) * cell_size
+                screen.level(12) -- Medium brightness for target
+                screen.rect(target_x, target_y, cell_size - 1, cell_size - 1)
+                screen.fill()
+            end
+        end
     end
 
     screen.update()
@@ -535,6 +695,10 @@ function cleanup()
         metro_glide:stop()
         metro_glide = nil
     end
+    if metro_screen_refresh then
+        metro_screen_refresh:stop()
+        metro_screen_refresh = nil
+    end
     if path_state.playback_metro then
         path_state.playback_metro:stop()
         path_state.playback_metro = nil
@@ -543,11 +707,142 @@ end
 
 -- key/enc handlers
 function key(n, z)
-    -- add key handling here
+    if n == 1 then
+        -- Key 1: Shift functionality
+        grid_ui_state.shift_held = (z == 1)
+        -- Update grid shift LED
+        if grid_device then
+            grid_device:led(16, 8, grid_ui_state.shift_held and 15 or 0)
+            grid_device:refresh()
+        end
+    elseif z == 1 then -- Key press (not release)
+        if n == 2 then
+            -- Key 2: Reset all bands to default values (current screen only)
+            if grid_ui_state.grid_mode == 1 then
+                -- Reset levels to -12dB
+                for i = 1, #freqs do
+                    params:set(string.format("band_%02d_level", i), -12)
+                end
+                -- Save to current snapshot
+                store_snapshot(current_snapshot)
+            elseif grid_ui_state.grid_mode == 2 then
+                -- Reset pans to center (0)
+                for i = 1, #freqs do
+                    params:set(string.format("band_%02d_pan", i), 0)
+                end
+                -- Save to current snapshot
+                store_snapshot(current_snapshot)
+            elseif grid_ui_state.grid_mode == 3 then
+                -- Reset thresholds to 0.0 (all audio passes through)
+                for i = 1, #freqs do
+                    params:set(string.format("band_%02d_thresh", i), 0.0)
+                end
+                -- Save to current snapshot
+                store_snapshot(current_snapshot)
+            end
+        elseif n == 3 then
+            -- Key 3: Randomize all bands (current screen only)
+            if grid_ui_state.grid_mode == 1 then
+                -- Randomize levels (-60dB to +12dB)
+                for i = 1, #freqs do
+                    local random_level = math.random(-60, 12)
+                    params:set(string.format("band_%02d_level", i), random_level)
+                end
+                -- Save to current snapshot
+                store_snapshot(current_snapshot)
+            elseif grid_ui_state.grid_mode == 2 then
+                -- Randomize pans (-1 to +1)
+                for i = 1, #freqs do
+                    local random_pan = (math.random() - 0.5) * 2
+                    params:set(string.format("band_%02d_pan", i), random_pan)
+                end
+                -- Save to current snapshot
+                store_snapshot(current_snapshot)
+            elseif grid_ui_state.grid_mode == 3 then
+                -- Randomize thresholds (0.0 to 1.0)
+                for i = 1, #freqs do
+                    local random_thresh = math.random() -- Returns value between 0.0 and 1.0
+                    params:set(string.format("band_%02d_thresh", i), random_thresh)
+                end
+                -- Save to current snapshot
+                store_snapshot(current_snapshot)
+            end
+        end
+    end
 end
 
 function enc(n, d)
-    -- add encoder handling here
+    if n == 2 then
+        -- Encoder 2: Select band (only in levels, pans, thresholds modes)
+        if grid_ui_state.grid_mode >= 1 and grid_ui_state.grid_mode <= 3 then
+            selected_band = selected_band + d
+            -- Clamp to bounds: 1-16
+            selected_band = math.max(1, math.min(#freqs, selected_band))
+        end
+    elseif n == 3 then
+        -- Encoder 3: Adjust parameter for selected band
+        if grid_ui_state.grid_mode >= 1 and grid_ui_state.grid_mode <= 3 then
+            if grid_ui_state.shift_held then
+                -- Shift held: Adjust all bands
+                if grid_ui_state.grid_mode == 1 then
+                    -- Adjust all levels
+                    local step = d * 0.5 -- 0.5dB per turn for levels
+                    for i = 1, #freqs do
+                        local current_level = params:get(string.format("band_%02d_level", i))
+                        local new_level = math.max(-60, math.min(12, current_level + step))
+                        params:set(string.format("band_%02d_level", i), new_level)
+                    end
+                elseif grid_ui_state.grid_mode == 2 then
+                    -- Adjust all pans
+                    local step = d * 0.01 -- 0.01 per turn for pan
+                    for i = 1, #freqs do
+                        local current_pan = params:get(string.format("band_%02d_pan", i))
+                        local new_pan = math.max(-1, math.min(1, current_pan + step))
+                        params:set(string.format("band_%02d_pan", i), new_pan)
+                    end
+                elseif grid_ui_state.grid_mode == 3 then
+                    -- Adjust all thresholds
+                    local step = d * 0.01 -- 0.01 per turn for thresholds (0.0-1.0 range)
+                    for i = 1, #freqs do
+                        local current_thresh = params:get(string.format("band_%02d_thresh", i))
+                        local new_thresh = math.max(0, math.min(1, current_thresh + step))
+                        params:set(string.format("band_%02d_thresh", i), new_thresh)
+                    end
+                end
+                -- Save to current snapshot
+                store_snapshot(current_snapshot)
+            else
+                -- No shift: Adjust selected band only
+                local band_idx = selected_band
+
+                if grid_ui_state.grid_mode == 1 then
+                    -- Adjust level - faster steps for easier adjustment
+                    local step = d * 0.5 -- 0.5dB per turn for levels
+                    local current_level = params:get(string.format("band_%02d_level", band_idx))
+                    local new_level = math.max(-60, math.min(12, current_level + step))
+                    params:set(string.format("band_%02d_level", band_idx), new_level)
+                    -- Save to current snapshot
+                    store_snapshot(current_snapshot)
+                elseif grid_ui_state.grid_mode == 2 then
+                    -- Adjust pan - fine control
+                    local step = d * 0.01 -- 0.01 per turn for pan
+                    local current_pan = params:get(string.format("band_%02d_pan", band_idx))
+                    local new_pan = math.max(-1, math.min(1, current_pan + step))
+                    params:set(string.format("band_%02d_pan", band_idx), new_pan)
+                    -- Save to current snapshot
+                    store_snapshot(current_snapshot)
+                elseif grid_ui_state.grid_mode == 3 then
+                    -- Adjust threshold - fine control
+                    local step = d * 0.01 -- 0.01 per turn for thresholds (0.0-1.0 range)
+                    local current_thresh = params:get(string.format("band_%02d_thresh", band_idx))
+                    local new_thresh = math.max(0, math.min(1, current_thresh + step))
+                    params:set(string.format("band_%02d_thresh", band_idx), new_thresh)
+                    -- Save to current snapshot
+                    store_snapshot(current_snapshot)
+                end
+            end
+        end
+    end
 end
 
 -- parameters
@@ -608,8 +903,8 @@ function add_params()
             type = "control",
             id = string.format("band_%02d_thresh", i),
             name = string.format("Band %02d Thresh", i),
-            controlspec = controlspec.new(-60, 12, 'lin', 0.1, 0, 'dB'),
-            formatter = function(p) return string.format("%.1f dB", p:get()) end,
+            controlspec = controlspec.new(0, 1, 'lin', 0.01, 0),
+            formatter = function(p) return string.format("%.2f", p:get()) end,
             hidden = true,
             action = function(thresh)
                 if engine and engine.thresh_band then engine.thresh_band(i, thresh) end
@@ -648,8 +943,8 @@ function add_params()
             type = "control",
             id = string.format("snapshot_a_%02d_thresh", i),
             name = string.format("%02d Thresh", i),
-            controlspec = controlspec.new(-60, 12, 'lin', 0.1, 0),
-            formatter = function(p) return string.format("%.1f", p:get()) end
+            controlspec = controlspec.new(0, 1, 'lin', 0.01, 0),
+            formatter = function(p) return string.format("%.2f", p:get()) end
         }
     end
 
@@ -683,8 +978,8 @@ function add_params()
             type = "control",
             id = string.format("snapshot_b_%02d_thresh", i),
             name = string.format("%02d Thresh", i),
-            controlspec = controlspec.new(-60, 12, 'lin', 0.1, 0),
-            formatter = function(p) return string.format("%.1f", p:get()) end
+            controlspec = controlspec.new(0, 1, 'lin', 0.01, 0),
+            formatter = function(p) return string.format("%.2f", p:get()) end
         }
     end
 
@@ -718,8 +1013,8 @@ function add_params()
             type = "control",
             id = string.format("snapshot_c_%02d_thresh", i),
             name = string.format("%02d Thresh", i),
-            controlspec = controlspec.new(-60, 12, 'lin', 0.1, 0),
-            formatter = function(p) return string.format("%.1f", p:get()) end
+            controlspec = controlspec.new(0, 1, 'lin', 0.01, 0),
+            formatter = function(p) return string.format("%.2f", p:get()) end
         }
     end
 
@@ -753,8 +1048,8 @@ function add_params()
             type = "control",
             id = string.format("snapshot_d_%02d_thresh", i),
             name = string.format("%02d Thresh", i),
-            controlspec = controlspec.new(-60, 12, 'lin', 0.1, 0),
-            formatter = function(p) return string.format("%.1f", p:get()) end
+            controlspec = controlspec.new(0, 1, 'lin', 0.01, 0),
+            formatter = function(p) return string.format("%.2f", p:get()) end
         }
     end
 end
