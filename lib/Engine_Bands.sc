@@ -5,6 +5,15 @@ Engine_Bands : CroneEngine {
     // ---- Boot / Alloc --------------------------------------------------------
     alloc {
         var freqs;
+        
+        // Final limiter synth for summed output
+        SynthDef(\finalLimiter, { |inBus = 0, outBus = 0|
+            var sig;
+            sig = In.ar(inBus, 2);
+            sig = Limiter.ar(sig, 0.99, 0.01);  // Hard limit at 0.99 to prevent clipping
+            Out.ar(outBus, sig);
+        }).add;
+        
         SynthDef(\specBand, { |inBus = 0, outBus = 0, freq = 1000, q = 1.0, level = 0.0, pan = 0.0, meterBus = -1, ampAtk = 0.01, ampRel = 0.08, thresh = 1.0|
             var src, sig, gain, bwidth, meter, open, cutoff, dark, outSig, meter_db, meter_normalized, gate_level, gate_open;
 
@@ -55,6 +64,9 @@ Engine_Bands : CroneEngine {
         // allocate per-band meter buses as individual control buses
         ~meterBuses = freqs.collect { Bus.control(context.server, 1) };
 
+        // Create an internal bus for summing all bands
+        ~sumBus = Bus.audio(context.server, 2);
+        
         ~bandGroup = Group.head(context.xg);
         ~bands = freqs.collect { |f, i|
             Synth.tail(
@@ -62,7 +74,7 @@ Engine_Bands : CroneEngine {
                 \specBand,
                 [
                     \inBus, context.in_b,
-                    \outBus, context.out_b,
+                    \outBus, ~sumBus,  // Output to sum bus instead of direct out
                     \freq, f,
                     \q, 6.0,
                     \level, -12.0,
@@ -73,6 +85,16 @@ Engine_Bands : CroneEngine {
         };
 
         context.server.sync;
+        
+        // Create final limiter synth to process the summed output
+        ~finalLimiter = Synth.tail(
+            ~bandGroup,
+            \finalLimiter,
+            [
+                \inBus, ~sumBus,
+                \outBus, context.out_b
+            ]
+        );
 
         // per-band meter polls using getSynchronous pattern
         ~meterPollNames = freqs.collect { |item, i|
@@ -121,8 +143,10 @@ Engine_Bands : CroneEngine {
 
     // ---- Teardown ------------------------------------------------------------
     free {
+        if(~finalLimiter.notNil) { ~finalLimiter.free; ~finalLimiter = nil; };
         if(~bands.notNil) { ~bands.do({ |x| x.free }); ~bands = nil; };
         if(~bandGroup.notNil) { ~bandGroup.free; ~bandGroup = nil; };
+        if(~sumBus.notNil) { ~sumBus.free; ~sumBus = nil; };
         if(~meterBuses.notNil) { ~meterBuses.do({ |b| if(b.notNil) { b.free } }); ~meterBuses = nil; };
         super.free;
     }
