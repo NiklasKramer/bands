@@ -31,7 +31,8 @@ local mode_names = { "levels", "pans", "thresholds", "matrix" }
 local band_meters = {}
 local band_meter_polls
 local grid_ui_state
-local selected_band = 1 -- Currently selected band (1-16)
+local selected_band = 1                      -- Currently selected band (1-16)
+local selected_matrix_pos = { x = 1, y = 1 } -- Selected position for matrix navigation
 
 -- Current state is now managed by the params system
 
@@ -708,6 +709,17 @@ function redraw()
             end
         end
 
+        -- Draw selected position indicator (if different from current)
+        if selected_matrix_pos.x ~= grid_ui_state.current_matrix_pos.x or
+            selected_matrix_pos.y ~= grid_ui_state.current_matrix_pos.y then
+            local sel_x = start_x + (selected_matrix_pos.x - 1) * cell_size
+            local sel_y = start_y + (selected_matrix_pos.y - 1) * cell_size
+            screen.level(8) -- Medium brightness for selected position
+            -- Draw a frame around the selected position
+            screen.rect(sel_x, sel_y, cell_size - 1, cell_size - 1)
+            screen.stroke()
+        end
+
         -- Draw minimal meters next to matrix
         local meter_start_x = start_x + matrix_width + gap
         local matrix_full_height = matrix_size * cell_size
@@ -774,8 +786,16 @@ function key(n, z)
         end
     elseif z == 1 then -- Key press (not release)
         if n == 2 then
-            -- Key 2: Reset all bands to default values (current screen only)
-            if grid_ui_state.grid_mode == 1 then
+            -- Key 2: Context-dependent action
+            if grid_ui_state.grid_mode == 4 then
+                -- Matrix mode: Go to selected position
+                local old_x = grid_ui_state.current_matrix_pos.x
+                local old_y = grid_ui_state.current_matrix_pos.y
+                apply_blend(selected_matrix_pos.x, selected_matrix_pos.y, old_x, old_y)
+                if params:get("info_banner") == 2 then
+                    info_banner_mod.show(string.format("Position %d,%d", selected_matrix_pos.x, selected_matrix_pos.y))
+                end
+            elseif grid_ui_state.grid_mode == 1 then
                 -- Reset levels to -12dB
                 for i = 1, #freqs do
                     params:set(string.format("band_%02d_level", i), -12)
@@ -798,8 +818,12 @@ function key(n, z)
                 store_snapshot(current_snapshot)
             end
         elseif n == 3 then
-            -- Key 3: Randomize all bands (current screen only)
-            if grid_ui_state.grid_mode == 1 then
+            -- Key 3: Context-dependent action
+            if grid_ui_state.grid_mode == 4 then
+                -- Matrix mode: Set selector to random position
+                selected_matrix_pos.x = math.random(1, 14)
+                selected_matrix_pos.y = math.random(1, 14)
+            elseif grid_ui_state.grid_mode == 1 then
                 -- Randomize levels (-60dB to +12dB)
                 for i = 1, #freqs do
                     local random_level = math.random(-60, 12)
@@ -829,16 +853,67 @@ function key(n, z)
 end
 
 function enc(n, d)
-    if n == 2 then
-        -- Encoder 2: Select band (only in levels, pans, thresholds modes)
-        if grid_ui_state.grid_mode >= 1 and grid_ui_state.grid_mode <= 3 then
+    if n == 1 then
+        -- Encoder 1: Switch modes
+        if grid_ui_state.shift_held then
+            -- Shift + enc 1: Switch between all 4 modes (levels, pans, thresholds, matrix)
+            grid_ui_state.grid_mode = grid_ui_state.grid_mode + d
+            if grid_ui_state.grid_mode < 1 then
+                grid_ui_state.grid_mode = 4
+            elseif grid_ui_state.grid_mode > 4 then
+                grid_ui_state.grid_mode = 1
+            end
+        else
+            -- Normal enc 1: Switch between first 3 modes (levels, pans, thresholds)
+            local new_mode = grid_ui_state.grid_mode + d
+            if new_mode < 1 then
+                new_mode = 3
+            elseif new_mode > 3 then
+                new_mode = 1
+            end
+            -- Only update if staying in range 1-3
+            if grid_ui_state.grid_mode <= 3 then
+                grid_ui_state.grid_mode = new_mode
+            else
+                -- If currently in matrix mode, go to mode 1 or 3 depending on direction
+                grid_ui_state.grid_mode = d > 0 and 1 or 3
+            end
+        end
+
+        -- Show mode change banner
+        if params:get("info_banner") == 2 then
+            local mode_name = mode_names[grid_ui_state.grid_mode] or "unknown"
+            info_banner_mod.show(mode_name)
+        end
+    elseif n == 2 then
+        if grid_ui_state.grid_mode == 4 then
+            -- Matrix mode: Navigate X position
+            selected_matrix_pos.x = selected_matrix_pos.x + d
+            selected_matrix_pos.x = math.max(1, math.min(14, selected_matrix_pos.x))
+        elseif grid_ui_state.grid_mode >= 1 and grid_ui_state.grid_mode <= 3 then
+            -- Other modes: Select band
             selected_band = selected_band + d
             -- Clamp to bounds: 1-16
             selected_band = math.max(1, math.min(#freqs, selected_band))
         end
     elseif n == 3 then
-        -- Encoder 3: Adjust parameter for selected band
-        if grid_ui_state.grid_mode >= 1 and grid_ui_state.grid_mode <= 3 then
+        if grid_ui_state.grid_mode == 4 then
+            -- Matrix mode: Navigate Y position or adjust glide
+            if grid_ui_state.shift_held then
+                -- Shift + enc 3: Adjust glide time
+                local current_glide = params:get("glide")
+                local new_glide = math.max(0.05, math.min(20, current_glide + d * 0.1))
+                params:set("glide", new_glide)
+                if params:get("info_banner") == 2 then
+                    info_banner_mod.show(string.format("Glide: %.2fs", new_glide))
+                end
+            else
+                -- Normal: Navigate Y position
+                selected_matrix_pos.y = selected_matrix_pos.y + d
+                selected_matrix_pos.y = math.max(1, math.min(14, selected_matrix_pos.y))
+            end
+        elseif grid_ui_state.grid_mode >= 1 and grid_ui_state.grid_mode <= 3 then
+            -- Other modes: Adjust parameter for selected band
             if grid_ui_state.shift_held then
                 -- Shift held: Adjust all bands
                 if grid_ui_state.grid_mode == 1 then
@@ -928,7 +1003,7 @@ function add_params()
         type = "control",
         id = "glide",
         name = "glide",
-        controlspec = controlspec.new(0, 20, 'lin', 0.01, 0.1, 's'),
+        controlspec = controlspec.new(0.05, 20, 'lin', 0.01, 0.1, 's'),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
 
