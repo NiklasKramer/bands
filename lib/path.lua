@@ -14,6 +14,13 @@ local glide_state
 -- Toggle path mode
 function Path.toggle_path_mode()
     path_state.mode = not path_state.mode
+
+    -- If turning off path mode, stop any playing path
+    if not path_state.mode and path_state.playing then
+        path_state.playing = false
+        Path.stop_path_playback()
+    end
+
     redraw() -- Update screen to show path mode status
     -- Grid will be updated by metro_grid_refresh
 end

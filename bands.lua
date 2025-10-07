@@ -93,7 +93,7 @@ end
 -- Initialize snapshot parameters with different default values
 local function init_snapshots()
     -- Snapshots are now stored in Norns params with default values
-    -- A: Left pan (-1.0), B: Right pan (1.0), C: Center pan (0.0), D: Alternating
+    -- All snapshots: Center pan (0.0), thresholds (0.0 - all audio passes through)
     -- No initialization needed - params handle persistence automatically
 end
 
@@ -936,7 +936,7 @@ function add_params()
             type = "control",
             id = string.format("snapshot_a_%02d_pan", i),
             name = string.format("%02d Pan", i),
-            controlspec = controlspec.new(-1, 1, 'lin', 0.01, -1),
+            controlspec = controlspec.new(-1, 1, 'lin', 0.01, 0),
             formatter = function(p) return string.format("%.2f", p:get()) end
         }
         params:add {
@@ -971,7 +971,7 @@ function add_params()
             type = "control",
             id = string.format("snapshot_b_%02d_pan", i),
             name = string.format("%02d Pan", i),
-            controlspec = controlspec.new(-1, 1, 'lin', 0.01, 1),
+            controlspec = controlspec.new(-1, 1, 'lin', 0.01, 0),
             formatter = function(p) return string.format("%.2f", p:get()) end
         }
         params:add {
@@ -1041,7 +1041,7 @@ function add_params()
             type = "control",
             id = string.format("snapshot_d_%02d_pan", i),
             name = string.format("%02d Pan", i),
-            controlspec = controlspec.new(-1, 1, 'lin', 0.01, (i % 2 == 0) and 1 or -1),
+            controlspec = controlspec.new(-1, 1, 'lin', 0.01, 0),
             formatter = function(p) return string.format("%.2f", p:get()) end
         }
         params:add {

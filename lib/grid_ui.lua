@@ -12,7 +12,7 @@ function GridUI.init(grid_device, freqs, mode_names)
         grid_mode = 1, -- 1=levels, 2=pans, 3=thresholds, 4=matrix
         shift_held = false,
         band_meters = {},
-        current_matrix_pos = { x = 7, y = 7 }
+        current_matrix_pos = { x = 1, y = 1 } -- Start at snapshot A (top-left)
     }
 
     return state

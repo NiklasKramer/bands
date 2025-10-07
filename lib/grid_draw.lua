@@ -44,7 +44,7 @@ function GridDraw.draw_parameter_indicators(g, col, i)
         local pan = params:get(string.format("band_%02d_pan", i))
         local pan_y = util.round(pan * 7 + 8)
         pan_y = util.clamp(pan_y, 1, 15)
-        g:led(col, pan_y, 4)
+        g:led(col, pan_y, 8)
     elseif grid_ui_state.grid_mode == 3 then
         -- Get threshold from current state (passed as dependency)
         local thresh = params:get(string.format("band_%02d_thresh", i))
@@ -82,7 +82,7 @@ end
 
 -- Draw pan meters
 function GridDraw.draw_pan_meters(g, col)
-    g:led(col, 8, 12)
+    g:led(col, 8, 4)
 end
 
 -- Draw matrix mode
@@ -222,9 +222,18 @@ end
 function GridDraw.draw_snapshot_buttons(g)
     local snapshot_buttons = { 7, 8, 9, 10 }
     local snapshot_names = { "A", "B", "C", "D" }
+
+    -- Get blend weights from current matrix position
+    local a_w, b_w, c_w, d_w = calculate_blend_weights(
+        grid_ui_state.current_matrix_pos.x,
+        grid_ui_state.current_matrix_pos.y
+    )
+    local weights = { a_w, b_w, c_w, d_w }
+
     for i, x in ipairs(snapshot_buttons) do
-        local brightness = (get_current_snapshot() == snapshot_names[i]) and 15 or 4
-        g:led(x, 16, brightness)
+        -- Map weight (0-1) to brightness (4-15)
+        local weight_brightness = math.floor(4 + weights[i] * 11)
+        g:led(x, 16, weight_brightness)
     end
 end
 
