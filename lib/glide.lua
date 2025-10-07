@@ -30,6 +30,7 @@ function Glide.complete_glide()
         local level_id = string.format("band_%02d_level", i)
         local pan_id = string.format("band_%02d_pan", i)
         local thresh_id = string.format("band_%02d_thresh", i)
+        local decimate_id = string.format("band_%02d_decimate", i)
 
         -- Set engine parameters directly
         if glide_state.target_values[level_id] and engine and engine.level then
@@ -40,6 +41,9 @@ function Glide.complete_glide()
         end
         if glide_state.target_values[thresh_id] and engine and engine.thresh_band then
             engine.thresh_band(i, glide_state.target_values[thresh_id])
+        end
+        if glide_state.target_values[decimate_id] and engine and engine.decimate_band then
+            engine.decimate_band(i, glide_state.target_values[decimate_id])
         end
     end
 
@@ -101,6 +105,7 @@ function Glide.update_glide_parameters(progress)
         local level_id = string.format("band_%02d_level", i)
         local pan_id = string.format("band_%02d_pan", i)
         local thresh_id = string.format("band_%02d_thresh", i)
+        local decimate_id = string.format("band_%02d_decimate", i)
 
         local current_level = glide_state.current_values[level_id] +
             (glide_state.target_values[level_id] - glide_state.current_values[level_id]) * progress
@@ -108,11 +113,14 @@ function Glide.update_glide_parameters(progress)
             (glide_state.target_values[pan_id] - glide_state.current_values[pan_id]) * progress
         local current_thresh = glide_state.current_values[thresh_id] +
             (glide_state.target_values[thresh_id] - glide_state.current_values[thresh_id]) * progress
+        local current_decimate = glide_state.current_values[decimate_id] +
+            (glide_state.target_values[decimate_id] - glide_state.current_values[decimate_id]) * progress
 
         -- Update params (this will update the engine automatically)
         params:set(string.format("band_%02d_level", i), current_level)
         params:set(string.format("band_%02d_pan", i), current_pan)
         params:set(string.format("band_%02d_thresh", i), current_thresh)
+        params:set(string.format("band_%02d_decimate", i), current_decimate)
     end
 end
 

@@ -19,6 +19,13 @@ function Helper.row_to_threshold(y)
     return (y - 1) / 14
 end
 
+function Helper.row_to_decimate(y)
+    -- row 1 = 48000 Hz (no decimation), row 15 = 100 Hz (max decimation)
+    -- Use exponential scale for musical response
+    local normalized = (y - 1) / 14                        -- 0 to 1
+    return math.floor(48000 * math.exp(-normalized * 6.2)) -- Exponential decay
+end
+
 -- Conversion functions: parameter value to row
 function Helper.level_db_to_row(level_db)
     -- inverse of: level_db = 6 - ((y - 1) * 66 / 14)
@@ -38,6 +45,13 @@ function Helper.threshold_to_row(thresh)
     return util.clamp(thresh_y, 1, 15)
 end
 
+function Helper.decimate_to_row(rate)
+    -- inverse of exponential decay
+    local normalized = -math.log(rate / 48000) / 6.2
+    local decimate_y = util.round(normalized * 14 + 1)
+    return util.clamp(decimate_y, 1, 15)
+end
+
 -- Set parameter for a single band or all bands
 function Helper.set_band_param(band_idx, param_type, value, shift_held, freqs, format_str, save_to_snapshot,
                                current_snapshot)
@@ -52,6 +66,8 @@ function Helper.set_band_param(band_idx, param_type, value, shift_held, freqs, f
                 params:set(string.format("band_%02d_pan", i), value)
             elseif param_type == "thresh" then
                 params:set(string.format("band_%02d_thresh", i), value)
+            elseif param_type == "decimate" then
+                params:set(string.format("band_%02d_decimate", i), value)
             end
         end
         print(string.format("all bands: set %s to " .. format_str, param_type, value))
@@ -63,6 +79,8 @@ function Helper.set_band_param(band_idx, param_type, value, shift_held, freqs, f
             params:set(string.format("band_%02d_pan", band_idx), value)
         elseif param_type == "thresh" then
             params:set(string.format("band_%02d_thresh", band_idx), value)
+        elseif param_type == "decimate" then
+            params:set(string.format("band_%02d_decimate", band_idx), value)
         end
         print(string.format("band %d: set %s to " .. format_str, band_idx, param_type, value))
     end
@@ -88,6 +106,11 @@ end
 function Helper.handle_threshold_mode(band_idx, y, shift_held, freqs, save_to_snapshot, current_snapshot)
     local thresh = Helper.row_to_threshold(y)
     Helper.set_band_param(band_idx, "thresh", thresh, shift_held, freqs, "%.2f", save_to_snapshot, current_snapshot)
+end
+
+function Helper.handle_decimate_mode(band_idx, y, shift_held, freqs, save_to_snapshot, current_snapshot)
+    local rate = Helper.row_to_decimate(y)
+    Helper.set_band_param(band_idx, "decimate", rate, shift_held, freqs, "%.0f Hz", save_to_snapshot, current_snapshot)
 end
 
 -- UI handlers

@@ -51,6 +51,14 @@ function GridDraw.draw_parameter_indicators(g, col, i)
         local thresh_y = util.round(thresh * 14 + 1)
         thresh_y = util.clamp(thresh_y, 1, 15)
         g:led(col, thresh_y, 4)
+    elseif grid_ui_state.grid_mode == 4 then
+        -- Get decimate rate from current state
+        local rate = params:get(string.format("band_%02d_decimate", i))
+        -- Convert rate to row using inverse exponential
+        local normalized = -math.log(rate / 48000) / 6.2
+        local decimate_y = util.round(normalized * 14 + 1)
+        decimate_y = util.clamp(decimate_y, 1, 15)
+        g:led(col, decimate_y, 8)
     end
 end
 
@@ -110,7 +118,7 @@ end
 
 -- Draw path mode elements
 function GridDraw.draw_path_mode_elements(g)
-    if grid_ui_state.grid_mode == 4 then -- Matrix mode
+    if grid_ui_state.grid_mode == 5 then -- Matrix mode
         -- Path mode toggle indicator at (16,1)
         local path_brightness = path_state.mode and 15 or 4
         g:led(16, 1, path_brightness)
@@ -239,7 +247,7 @@ end
 
 -- Draw mode selector
 function GridDraw.draw_mode_selector(g)
-    for x = 1, 3 do
+    for x = 1, 4 do
         local brightness = (x == grid_ui_state.grid_mode) and 15 or 4
         g:led(x, 16, brightness)
     end
@@ -247,7 +255,7 @@ end
 
 -- Draw matrix button
 function GridDraw.draw_matrix_button(g)
-    local matrix_brightness = (grid_ui_state.grid_mode == 4) and 15 or 4
+    local matrix_brightness = (grid_ui_state.grid_mode == 5) and 15 or 4
     g:led(14, 16, matrix_brightness)
 end
 

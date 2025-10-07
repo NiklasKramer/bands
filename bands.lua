@@ -27,7 +27,7 @@ local freqs = {
     1300, 1600, 2000, 2600, 3500, 5000, 8000, 12000
 }
 
-local mode_names = { "levels", "pans", "thresholds", "matrix" }
+local mode_names = { "levels", "pans", "thresholds", "decimate", "matrix" }
 local band_meters = {}
 local band_meter_polls
 local grid_ui_state
@@ -84,11 +84,13 @@ local function init_current_state()
         local level = params:get(string.format("snapshot_a_%02d_level", i))
         local pan = params:get(string.format("snapshot_a_%02d_pan", i))
         local thresh = params:get(string.format("snapshot_a_%02d_thresh", i))
+        local decimate = params:get(string.format("snapshot_a_%02d_decimate", i))
 
         -- Initialize hidden band parameters
         params:set(string.format("band_%02d_level", i), level)
         params:set(string.format("band_%02d_pan", i), pan)
         params:set(string.format("band_%02d_thresh", i), thresh)
+        params:set(string.format("band_%02d_decimate", i), decimate)
     end
 end
 
@@ -108,10 +110,12 @@ local function store_snapshot(snapshot_name)
         local level_id = string.format("snapshot_%s_%02d_level", string.lower(snapshot_name), i)
         local pan_id = string.format("snapshot_%s_%02d_pan", string.lower(snapshot_name), i)
         local thresh_id = string.format("snapshot_%s_%02d_thresh", string.lower(snapshot_name), i)
+        local decimate_id = string.format("snapshot_%s_%02d_decimate", string.lower(snapshot_name), i)
 
         params:set(level_id, params:get(string.format("band_%02d_level", i)))
         params:set(pan_id, params:get(string.format("band_%02d_pan", i)))
         params:set(thresh_id, params:get(string.format("band_%02d_thresh", i)))
+        params:set(decimate_id, params:get(string.format("band_%02d_decimate", i)))
     end
 end
 
@@ -177,6 +181,7 @@ function apply_blend(x, y, old_x, old_y)
         local level_id = string.format("band_%02d_level", i)
         local pan_id = string.format("band_%02d_pan", i)
         local thresh_id = string.format("band_%02d_thresh", i)
+        local decimate_id = string.format("band_%02d_decimate", i)
 
         target_values[level_id] = params:get(string.format("snapshot_a_%02d_level", i)) * a_w +
             params:get(string.format("snapshot_b_%02d_level", i)) * b_w +
@@ -192,6 +197,11 @@ function apply_blend(x, y, old_x, old_y)
             params:get(string.format("snapshot_b_%02d_thresh", i)) * b_w +
             params:get(string.format("snapshot_c_%02d_thresh", i)) * c_w +
             params:get(string.format("snapshot_d_%02d_thresh", i)) * d_w
+
+        target_values[decimate_id] = params:get(string.format("snapshot_a_%02d_decimate", i)) * a_w +
+            params:get(string.format("snapshot_b_%02d_decimate", i)) * b_w +
+            params:get(string.format("snapshot_c_%02d_decimate", i)) * c_w +
+            params:get(string.format("snapshot_d_%02d_decimate", i)) * d_w
     end
 
     -- Check if glide is enabled
@@ -221,6 +231,7 @@ function apply_blend(x, y, old_x, old_y)
                 local level_id = string.format("band_%02d_level", i)
                 local pan_id = string.format("band_%02d_pan", i)
                 local thresh_id = string.format("band_%02d_thresh", i)
+                local decimate_id = string.format("band_%02d_decimate", i)
 
                 current_values[level_id] = glide_state.current_values[level_id] +
                     (glide_state.target_values[level_id] - glide_state.current_values[level_id]) * progress
@@ -228,6 +239,8 @@ function apply_blend(x, y, old_x, old_y)
                     (glide_state.target_values[pan_id] - glide_state.current_values[pan_id]) * progress
                 current_values[thresh_id] = glide_state.current_values[thresh_id] +
                     (glide_state.target_values[thresh_id] - glide_state.current_values[thresh_id]) * progress
+                current_values[decimate_id] = glide_state.current_values[decimate_id] +
+                    (glide_state.target_values[decimate_id] - glide_state.current_values[decimate_id]) * progress
             end
 
 
@@ -260,10 +273,12 @@ function apply_blend(x, y, old_x, old_y)
                 local level_id = string.format("band_%02d_level", i)
                 local pan_id = string.format("band_%02d_pan", i)
                 local thresh_id = string.format("band_%02d_thresh", i)
+                local decimate_id = string.format("band_%02d_decimate", i)
 
                 glide_state.current_values[level_id] = params:get(level_id)
                 glide_state.current_values[pan_id] = params:get(pan_id)
                 glide_state.current_values[thresh_id] = params:get(thresh_id)
+                glide_state.current_values[decimate_id] = params:get(decimate_id)
             end
 
             -- Initialize last LED position to start position
@@ -284,10 +299,12 @@ function apply_blend(x, y, old_x, old_y)
             local level_id = string.format("band_%02d_level", i)
             local pan_id = string.format("band_%02d_pan", i)
             local thresh_id = string.format("band_%02d_thresh", i)
+            local decimate_id = string.format("band_%02d_decimate", i)
 
             params:set(level_id, target_values[level_id])
             params:set(pan_id, target_values[pan_id])
             params:set(thresh_id, target_values[thresh_id])
+            params:set(decimate_id, target_values[decimate_id])
         end
 
         -- Auto-save changes to current snapshot
@@ -340,7 +357,7 @@ function redraw_grid()
 
 
     -- Draw main content based on mode
-    if grid_ui_state.grid_mode ~= 4 then
+    if grid_ui_state.grid_mode ~= 5 then
         grid_draw_mod.draw_band_controls(g, num)
     else
         grid_draw_mod.draw_matrix_mode(g)
@@ -378,9 +395,11 @@ function init()
         local level_id = string.format("band_%02d_level", i)
         local pan_id = string.format("band_%02d_pan", i)
         local thresh_id = string.format("band_%02d_thresh", i)
+        local decimate_id = string.format("band_%02d_decimate", i)
         glide_state.target_values[level_id] = 0.0
         glide_state.target_values[pan_id] = 0.0
         glide_state.target_values[thresh_id] = 0.0
+        glide_state.target_values[decimate_id] = 48000
     end
 
     -- initialize modules with dependencies
@@ -663,6 +682,46 @@ function redraw()
         -- Draw snapshot letters
         draw_snapshot_letters()
     elseif grid_ui_state.grid_mode == 4 then
+        -- Decimate screen - Visual decimate rate indicators
+        local num_bands = math.min(16, #freqs)
+        local indicator_width = 3
+        local indicator_spacing = 5
+        local start_x = 8
+        local indicator_height = 50
+        local indicator_y = 5
+
+        for i = 1, num_bands do
+            local x = start_x + (i - 1) * indicator_spacing
+            local rate = params:get(string.format("band_%02d_decimate", i))
+
+            -- Convert rate (100 to 48000 Hz) to position using exponential scale
+            -- Lower rates (more decimation) appear lower on screen
+            local normalized = -math.log(rate / 48000) / 6.2 -- 0 (48k) to 1 (100)
+            local decimate_position = normalized * indicator_height
+            decimate_position = math.max(0, math.min(indicator_height, decimate_position))
+
+            -- Draw background line
+            screen.level(2)
+            screen.rect(x, indicator_y, indicator_width, indicator_height)
+            screen.fill()
+
+            -- Draw decimate indicator
+            screen.level(15)
+            screen.rect(x, indicator_y + decimate_position - 2, indicator_width, 4)
+            screen.fill()
+        end
+
+        -- Draw cursor below selected band
+        if selected_band >= 1 and selected_band <= num_bands then
+            local cursor_x = start_x + (selected_band - 1) * indicator_spacing
+            screen.level(15)
+            screen.rect(cursor_x, indicator_y + indicator_height + 5, indicator_width, 3)
+            screen.fill()
+        end
+
+        -- Draw snapshot letters
+        draw_snapshot_letters()
+    elseif grid_ui_state.grid_mode == 5 then
         -- Matrix screen - Visual matrix display
         local matrix_size = 14
         local cell_size = 4
@@ -815,7 +874,7 @@ function key(n, z)
     elseif z == 1 then -- Key press (not release)
         if n == 2 then
             -- Key 2: Context-dependent action
-            if grid_ui_state.grid_mode == 4 then
+            if grid_ui_state.grid_mode == 5 then
                 -- Matrix mode: Go to selected position
                 local old_x = grid_ui_state.current_matrix_pos.x
                 local old_y = grid_ui_state.current_matrix_pos.y
@@ -844,10 +903,17 @@ function key(n, z)
                 end
                 -- Save to current snapshot
                 store_snapshot(current_snapshot)
+            elseif grid_ui_state.grid_mode == 4 then
+                -- Reset decimate to 48000 Hz (no decimation)
+                for i = 1, #freqs do
+                    params:set(string.format("band_%02d_decimate", i), 48000)
+                end
+                -- Save to current snapshot
+                store_snapshot(current_snapshot)
             end
         elseif n == 3 then
             -- Key 3: Context-dependent action
-            if grid_ui_state.grid_mode == 4 then
+            if grid_ui_state.grid_mode == 5 then
                 -- Matrix mode: Set selector to random position
                 selected_matrix_pos.x = math.random(1, 14)
                 selected_matrix_pos.y = math.random(1, 14)
@@ -875,6 +941,16 @@ function key(n, z)
                 end
                 -- Save to current snapshot
                 store_snapshot(current_snapshot)
+            elseif grid_ui_state.grid_mode == 4 then
+                -- Randomize decimate rates (100 to 48000 Hz)
+                for i = 1, #freqs do
+                    -- Random exponential value
+                    local random_normalized = math.random()
+                    local random_rate = math.floor(48000 * math.exp(-random_normalized * 6.2))
+                    params:set(string.format("band_%02d_decimate", i), random_rate)
+                end
+                -- Save to current snapshot
+                store_snapshot(current_snapshot)
             end
         end
     end
@@ -884,27 +960,27 @@ function enc(n, d)
     if n == 1 then
         -- Encoder 1: Switch modes
         if grid_ui_state.shift_held then
-            -- Shift + enc 1: Switch between all 4 modes (levels, pans, thresholds, matrix)
+            -- Shift + enc 1: Switch between all 5 modes (levels, pans, thresholds, decimate, matrix)
             grid_ui_state.grid_mode = grid_ui_state.grid_mode + d
             if grid_ui_state.grid_mode < 1 then
-                grid_ui_state.grid_mode = 4
-            elseif grid_ui_state.grid_mode > 4 then
+                grid_ui_state.grid_mode = 5
+            elseif grid_ui_state.grid_mode > 5 then
                 grid_ui_state.grid_mode = 1
             end
         else
-            -- Normal enc 1: Switch between first 3 modes (levels, pans, thresholds)
+            -- Normal enc 1: Switch between first 4 modes (levels, pans, thresholds, decimate)
             local new_mode = grid_ui_state.grid_mode + d
             if new_mode < 1 then
-                new_mode = 3
-            elseif new_mode > 3 then
+                new_mode = 4
+            elseif new_mode > 4 then
                 new_mode = 1
             end
-            -- Only update if staying in range 1-3
-            if grid_ui_state.grid_mode <= 3 then
+            -- Only update if staying in range 1-4
+            if grid_ui_state.grid_mode <= 4 then
                 grid_ui_state.grid_mode = new_mode
             else
-                -- If currently in matrix mode, go to mode 1 or 3 depending on direction
-                grid_ui_state.grid_mode = d > 0 and 1 or 3
+                -- If currently in matrix mode, go to mode 1 or 4 depending on direction
+                grid_ui_state.grid_mode = d > 0 and 1 or 4
             end
         end
 
@@ -914,18 +990,18 @@ function enc(n, d)
             info_banner_mod.show(mode_name)
         end
     elseif n == 2 then
-        if grid_ui_state.grid_mode == 4 then
+        if grid_ui_state.grid_mode == 5 then
             -- Matrix mode: Navigate X position
             selected_matrix_pos.x = selected_matrix_pos.x + d
             selected_matrix_pos.x = math.max(1, math.min(14, selected_matrix_pos.x))
-        elseif grid_ui_state.grid_mode >= 1 and grid_ui_state.grid_mode <= 3 then
+        elseif grid_ui_state.grid_mode >= 1 and grid_ui_state.grid_mode <= 4 then
             -- Other modes: Select band
             selected_band = selected_band + d
             -- Clamp to bounds: 1-16
             selected_band = math.max(1, math.min(#freqs, selected_band))
         end
     elseif n == 3 then
-        if grid_ui_state.grid_mode == 4 then
+        if grid_ui_state.grid_mode == 5 then
             -- Matrix mode: Navigate Y position or adjust glide
             if grid_ui_state.shift_held then
                 -- Shift + enc 3: Adjust glide time
@@ -940,7 +1016,7 @@ function enc(n, d)
                 selected_matrix_pos.y = selected_matrix_pos.y + d
                 selected_matrix_pos.y = math.max(1, math.min(14, selected_matrix_pos.y))
             end
-        elseif grid_ui_state.grid_mode >= 1 and grid_ui_state.grid_mode <= 3 then
+        elseif grid_ui_state.grid_mode >= 1 and grid_ui_state.grid_mode <= 4 then
             -- Other modes: Adjust parameter for selected band
             if grid_ui_state.shift_held then
                 -- Shift held: Adjust all bands
@@ -967,6 +1043,15 @@ function enc(n, d)
                         local current_thresh = params:get(string.format("band_%02d_thresh", i))
                         local new_thresh = math.max(0, math.min(1, current_thresh + step))
                         params:set(string.format("band_%02d_thresh", i), new_thresh)
+                    end
+                elseif grid_ui_state.grid_mode == 4 then
+                    -- Adjust all decimate rates
+                    -- Use exponential steps for musical feel
+                    local step = d * 500 -- 500 Hz steps
+                    for i = 1, #freqs do
+                        local current_rate = params:get(string.format("band_%02d_decimate", i))
+                        local new_rate = math.max(100, math.min(48000, current_rate + step))
+                        params:set(string.format("band_%02d_decimate", i), new_rate)
                     end
                 end
                 -- Save to current snapshot
@@ -997,6 +1082,14 @@ function enc(n, d)
                     local current_thresh = params:get(string.format("band_%02d_thresh", band_idx))
                     local new_thresh = math.max(0, math.min(1, current_thresh + step))
                     params:set(string.format("band_%02d_thresh", band_idx), new_thresh)
+                    -- Save to current snapshot
+                    store_snapshot(current_snapshot)
+                elseif grid_ui_state.grid_mode == 4 then
+                    -- Adjust decimate rate
+                    local step = d * 500 -- 500 Hz steps
+                    local current_rate = params:get(string.format("band_%02d_decimate", band_idx))
+                    local new_rate = math.max(100, math.min(48000, current_rate + step))
+                    params:set(string.format("band_%02d_decimate", band_idx), new_rate)
                     -- Save to current snapshot
                     store_snapshot(current_snapshot)
                 end
@@ -1104,7 +1197,7 @@ function add_params()
 
     -- Add snapshot parameters for persistence
     -- Snapshot A
-    params:add_group("snapshot A", 49)
+    params:add_group("snapshot A", 65)
     params:add {
         type = "control",
         id = "snapshot_a_q",
@@ -1136,10 +1229,17 @@ function add_params()
             controlspec = controlspec.new(0, 1, 'lin', 0.01, 0),
             formatter = function(p) return string.format("%.2f", p:get()) end
         }
+        params:add {
+            type = "control",
+            id = string.format("snapshot_a_%02d_decimate", i),
+            name = string.format("%02d Decimate", i),
+            controlspec = controlspec.new(100, 48000, 'exp', 1, 48000),
+            formatter = function(p) return string.format("%.0f Hz", p:get()) end
+        }
     end
 
     -- Snapshot B
-    params:add_group("snapshot B", 49)
+    params:add_group("snapshot B", 65)
     params:add {
         type = "control",
         id = "snapshot_b_q",
@@ -1171,10 +1271,17 @@ function add_params()
             controlspec = controlspec.new(0, 1, 'lin', 0.01, 0),
             formatter = function(p) return string.format("%.2f", p:get()) end
         }
+        params:add {
+            type = "control",
+            id = string.format("snapshot_b_%02d_decimate", i),
+            name = string.format("%02d Decimate", i),
+            controlspec = controlspec.new(100, 48000, 'exp', 1, 48000),
+            formatter = function(p) return string.format("%.0f Hz", p:get()) end
+        }
     end
 
     -- Snapshot C
-    params:add_group("snapshot C", 49)
+    params:add_group("snapshot C", 65)
     params:add {
         type = "control",
         id = "snapshot_c_q",
@@ -1206,10 +1313,17 @@ function add_params()
             controlspec = controlspec.new(0, 1, 'lin', 0.01, 0),
             formatter = function(p) return string.format("%.2f", p:get()) end
         }
+        params:add {
+            type = "control",
+            id = string.format("snapshot_c_%02d_decimate", i),
+            name = string.format("%02d Decimate", i),
+            controlspec = controlspec.new(100, 48000, 'exp', 1, 48000),
+            formatter = function(p) return string.format("%.0f Hz", p:get()) end
+        }
     end
 
     -- Snapshot D
-    params:add_group("snapshot D", 49)
+    params:add_group("snapshot D", 65)
     params:add {
         type = "control",
         id = "snapshot_d_q",
@@ -1240,6 +1354,13 @@ function add_params()
             name = string.format("%02d Thresh", i),
             controlspec = controlspec.new(0, 1, 'lin', 0.01, 0),
             formatter = function(p) return string.format("%.2f", p:get()) end
+        }
+        params:add {
+            type = "control",
+            id = string.format("snapshot_d_%02d_decimate", i),
+            name = string.format("%02d Decimate", i),
+            controlspec = controlspec.new(100, 48000, 'exp', 1, 48000),
+            formatter = function(p) return string.format("%.0f Hz", p:get()) end
         }
     end
 end
