@@ -984,7 +984,7 @@ function add_params()
     -- Current state is now managed by the params system
 
     -- global controls
-    params:add_group("global", 3)
+    params:add_group("global", 4)
     params:add {
         type = "control",
         id = "q",
@@ -1005,6 +1005,17 @@ function add_params()
         name = "glide",
         controlspec = controlspec.new(0.05, 20, 'lin', 0.01, 0.1, 's'),
         formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+
+    params:add {
+        type = "control",
+        id = "decimate_smoothing",
+        name = "Decimate Smooth",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1),
+        formatter = function(p) return string.format("%.2f", p:get()) end,
+        action = function(smoothing)
+            if engine and engine.decimate_smoothing then engine.decimate_smoothing(smoothing) end
+        end
     }
 
     params:add {
@@ -1048,6 +1059,17 @@ function add_params()
             hidden = true,
             action = function(thresh)
                 if engine and engine.thresh_band then engine.thresh_band(i, thresh) end
+            end
+        }
+        params:add {
+            type = "control",
+            id = string.format("band_%02d_decimate", i),
+            name = string.format("Band %02d Decimate", i),
+            controlspec = controlspec.new(100, 48000, 'exp', 1, 48000, 'Hz'),
+            formatter = function(p) return string.format("%.0f Hz", p:get()) end,
+            hidden = true,
+            action = function(rate)
+                if engine and engine.decimate_band then engine.decimate_band(i, rate) end
             end
         }
     end

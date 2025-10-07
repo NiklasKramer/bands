@@ -14,7 +14,7 @@ Engine_Bands : CroneEngine {
             Out.ar(outBus, sig);
         }).add;
         
-        SynthDef(\specBand, { |inBus = 0, outBus = 0, freq = 1000, q = 1.0, level = 0.0, pan = 0.0, meterBus = -1, ampAtk = 0.01, ampRel = 0.08, thresh = 1.0|
+        SynthDef(\specBand, { |inBus = 0, outBus = 0, freq = 1000, q = 1.0, level = 0.0, pan = 0.0, meterBus = -1, ampAtk = 0.01, ampRel = 0.08, thresh = 1.0, decimateRate = 48000, decimateSmoothing = 1|
             var src, sig, gain, bwidth, meter, open, cutoff, dark, outSig, meter_db, meter_normalized, gate_level, gate_open;
 
             src = In.ar(inBus, 2);
@@ -42,6 +42,9 @@ Engine_Bands : CroneEngine {
             gate_open = (gate_level > thresh).asFloat; // 1 if above threshold, 0 if below
             gate_open = Lag.kr(gate_open, 0.1); // smooth gate transitions
             sig = sig * gate_open; // simple VCA
+            
+            // Apply sample rate reduction (decimation)
+            sig = SmoothDecimator.ar(sig, decimateRate.clip(100, 48000), decimateSmoothing.clip(0, 1));
     
             outSig = Balance2.ar(sig[0] * gain, sig[1] * gain, pan, 1);
             
@@ -138,6 +141,23 @@ Engine_Bands : CroneEngine {
             i = msg[1].asInteger;
             t = msg[2].clip(0.0, 1.0);
             ~setBandParam.(i, \thresh, t);
+        });
+        
+        // set decimate rate for a single band (index, rate in Hz)
+        this.addCommand("decimate_band", "if", { arg msg;
+            var i, rate;
+            i = msg[1].asInteger;
+            rate = msg[2].clip(100, 48000);
+            ~setBandParam.(i, \decimateRate, rate);
+        });
+        
+        // set decimate smoothing for all bands at once
+        this.addCommand("decimate_smoothing", "f", { arg msg;
+            var smoothing;
+            smoothing = msg[1].clip(0.0, 1.0);
+            if(~bands.notNil) {
+                ~bands.do({ |s| s.set(\decimateSmoothing, smoothing) });
+            };
         });
     }
 
