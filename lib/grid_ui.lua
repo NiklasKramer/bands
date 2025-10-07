@@ -22,29 +22,47 @@ end
 function GridUI.handle_matrix_control(ui_state, x, y, snapshot_functions)
     if x == 16 and y == 1 then
         -- Path mode toggle at position (16,1)
-        snapshot_functions.toggle_path_mode()
+        -- Shift + (16,1): Clear path
+        if ui_state.shift_held then
+            snapshot_functions.clear_path()
+            if snapshot_functions.show_banner then
+                snapshot_functions.show_banner("Path Cleared")
+            end
+        else
+            snapshot_functions.toggle_path_mode()
+        end
     elseif x == 1 and y == 1 then
         -- Path recording start/stop at position (1,1)
         snapshot_functions.toggle_path_recording()
     elseif x >= 2 and x <= 15 and y >= 2 and y <= 15 then
-        -- Store the old position before updating
-        local old_x = ui_state.current_matrix_pos.x
-        local old_y = ui_state.current_matrix_pos.y
-
-        -- Update to new position
-        ui_state.current_matrix_pos = { x = x - 1, y = y - 1 }
-
-        -- Handle path mode: add points or clear all points
+        -- Handle path mode: add or remove points
         if snapshot_functions.get_path_mode and snapshot_functions.get_path_mode() then
+            local matrix_x = x - 1
+            local matrix_y = y - 1
+
             if ui_state.shift_held then
-                -- Shift + press: clear all path points
-                snapshot_functions.clear_path()
+                -- Shift + press: remove point from path if it exists
+                snapshot_functions.remove_path_point(matrix_x, matrix_y)
+                if snapshot_functions.show_banner then
+                    snapshot_functions.show_banner("Point Removed")
+                end
             else
                 -- Normal press: add point to path
-                snapshot_functions.add_path_point(ui_state.current_matrix_pos.x, ui_state.current_matrix_pos.y)
+                snapshot_functions.add_path_point(matrix_x, matrix_y)
+                if snapshot_functions.show_banner then
+                    snapshot_functions.show_banner("Point Added")
+                end
             end
         else
-            -- Normal matrix movement
+            -- Normal matrix movement (not in path mode)
+            -- Store the old position before updating
+            local old_x = ui_state.current_matrix_pos.x
+            local old_y = ui_state.current_matrix_pos.y
+
+            -- Update to new position
+            ui_state.current_matrix_pos = { x = x - 1, y = y - 1 }
+
+            -- Apply blend for new matrix position
             snapshot_functions.apply_blend(ui_state.current_matrix_pos.x, ui_state.current_matrix_pos.y, old_x, old_y)
         end
     end
@@ -54,12 +72,6 @@ end
 function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_functions)
     if y == 16 and x == 16 then
         ui_state.shift_held = (z == 1)
-
-        -- Shift + (16,16): Clear path
-        if z == 1 and ui_state.shift_held and snapshot_functions.clear_path then
-            snapshot_functions.clear_path()
-        end
-
         GridUI.redraw(ui_state)
         return
     end

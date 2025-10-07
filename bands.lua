@@ -637,7 +637,14 @@ function redraw()
         -- Matrix screen - Visual matrix display
         local matrix_size = 14
         local cell_size = 4
-        local start_x = 8
+        local matrix_width = matrix_size * cell_size
+        local num_bands = math.min(16, #freqs)
+        local meter_width = 2
+        local meter_spacing = 3
+        local total_meter_width = num_bands * meter_spacing - (meter_spacing - meter_width)
+        local gap = 8                           -- Gap between matrix and meters
+        local total_width = matrix_width + gap + total_meter_width
+        local start_x = (128 - total_width) / 2 -- Center everything horizontally
         local start_y = 8
 
         -- Draw matrix grid
@@ -697,6 +704,32 @@ function redraw()
                 local target_y = start_y + (glide_state.target_pos.y - 1) * cell_size
                 screen.level(12) -- Medium brightness for target
                 screen.rect(target_x, target_y, cell_size - 1, cell_size - 1)
+                screen.fill()
+            end
+        end
+
+        -- Draw minimal meters next to matrix
+        local meter_start_x = start_x + matrix_width + gap
+        local matrix_full_height = matrix_size * cell_size
+        local meter_height = matrix_full_height * 2 / 3
+        local meter_y = start_y + (matrix_full_height - meter_height) / 2 -- Center vertically
+
+        for i = 1, num_bands do
+            local x = meter_start_x + (i - 1) * meter_spacing
+            local meter_v = band_meters[i] or 0
+
+            -- Calculate meter height (0-1 range)
+            local meter_fill_height = meter_v * meter_height
+
+            -- Draw background
+            screen.level(2)
+            screen.rect(x, meter_y, meter_width, meter_height)
+            screen.fill()
+
+            -- Draw meter value (from bottom up)
+            if meter_fill_height > 0 then
+                screen.level(15)
+                screen.rect(x, meter_y + meter_height - meter_fill_height, meter_width, meter_fill_height)
                 screen.fill()
             end
         end

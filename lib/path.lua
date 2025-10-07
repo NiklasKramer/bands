@@ -46,9 +46,15 @@ function Path.toggle_path_recording()
         -- Start playback: begin at first point
         path_state.current_point = 1
         Path.start_path_playback()
+        if Path.show_banner then
+            Path.show_banner("Path Playing")
+        end
     else
         -- Stop playback
         Path.stop_path_playback()
+        if Path.show_banner then
+            Path.show_banner("Path Stopped")
+        end
     end
 
     redraw() -- Update screen to show playback status
