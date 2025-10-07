@@ -327,11 +327,6 @@ local function switch_to_snapshot(snapshot_name)
 
     redraw()                               -- Update the screen to show the new snapshot
     redraw_grid()                          -- Update the grid to show the new snapshot
-
-    -- Show info banner
-    if params:get("info_banner") == 2 then
-        info_banner_mod.show("Snapshot " .. snapshot_name)
-    end
 end
 
 
@@ -495,6 +490,30 @@ function grid.key(x, y, z)
     })
 end
 
+-- Helper function to draw snapshot letters with blend weights
+local function draw_snapshot_letters()
+    -- Get blend weights from current matrix position
+    local a_w, b_w, c_w, d_w = calculate_blend_weights(
+        grid_ui_state.current_matrix_pos.x,
+        grid_ui_state.current_matrix_pos.y
+    )
+
+    -- Position on right side of screen (stacked vertically)
+    local letter_x = 110
+    local letters = { "A", "B", "C", "D" }
+    local weights = { a_w, b_w, c_w, d_w }
+    local y_positions = { 15, 30, 45, 60 } -- Stacked vertically
+
+    -- Draw each letter with brightness based on weight
+    for i = 1, 4 do
+        local brightness = math.floor(weights[i] * 15) -- 0 to 15 range
+        screen.level(brightness)
+        screen.font_size(20)                           -- Large font
+        screen.move(letter_x, y_positions[i])
+        screen.text(letters[i])
+    end
+end
+
 -- screen redraw
 function redraw()
     screen.clear()
@@ -557,6 +576,9 @@ function redraw()
             screen.rect(cursor_x, meter_y + meter_height + 5, meter_width, 3)
             screen.fill()
         end
+
+        -- Draw snapshot letters
+        draw_snapshot_letters()
     elseif grid_ui_state.grid_mode == 2 then
         -- Pans screen - Visual pan indicators
         local num_bands = math.min(16, #freqs)
@@ -598,6 +620,9 @@ function redraw()
             screen.rect(cursor_x, indicator_y + indicator_height + 5, indicator_width, 3)
             screen.fill()
         end
+
+        -- Draw snapshot letters
+        draw_snapshot_letters()
     elseif grid_ui_state.grid_mode == 3 then
         -- Thresholds screen - Visual threshold indicators
         local num_bands = math.min(16, #freqs)
@@ -634,6 +659,9 @@ function redraw()
             screen.rect(cursor_x, indicator_y + indicator_height + 5, indicator_width, 3)
             screen.fill()
         end
+
+        -- Draw snapshot letters
+        draw_snapshot_letters()
     elseif grid_ui_state.grid_mode == 4 then
         -- Matrix screen - Visual matrix display
         local matrix_size = 14
