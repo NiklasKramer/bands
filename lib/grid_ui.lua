@@ -70,6 +70,10 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                 ui_state.grid_mode = x
                 if redraw_screen_callback then redraw_screen_callback() end
                 if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
+                -- Show info banner for mode change
+                if snapshot_functions.show_banner then
+                    snapshot_functions.show_banner(ui_state.mode_names[x])
+                end
             elseif x == 7 then
                 if ui_state.shift_held then
                     snapshot_functions.save_snapshot("A")
@@ -98,6 +102,10 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                 ui_state.grid_mode = 4
                 if redraw_screen_callback then redraw_screen_callback() end
                 if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
+                -- Show info banner for matrix mode
+                if snapshot_functions.show_banner then
+                    snapshot_functions.show_banner("matrix")
+                end
             end
         elseif y >= 1 and y <= 15 then
             if ui_state.grid_mode == 4 then

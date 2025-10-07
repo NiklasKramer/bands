@@ -10,6 +10,7 @@ local meters_mod = include 'lib/meters'
 local path_mod = include 'lib/path'
 local glide_mod = include 'lib/glide'
 local grid_draw_mod = include 'lib/grid_draw'
+local info_banner_mod = include 'lib/info_banner'
 
 -- params
 local controlspec = require 'controlspec'
@@ -325,6 +326,11 @@ local function switch_to_snapshot(snapshot_name)
 
     redraw()                               -- Update the screen to show the new snapshot
     redraw_grid()                          -- Update the grid to show the new snapshot
+
+    -- Show info banner
+    if params:get("info_banner") == 2 then
+        info_banner_mod.show("Snapshot " .. snapshot_name)
+    end
 end
 
 
@@ -390,7 +396,12 @@ function init()
         util = util,
         params = params,
         path_state = path_state,
-        glide_state = glide_state
+        glide_state = glide_state,
+        show_banner = function(msg)
+            if params:get("info_banner") == 2 then
+                info_banner_mod.show(msg)
+            end
+        end
     })
 
     glide_mod.init({
@@ -412,6 +423,11 @@ function init()
         path_state = path_state,
         glide_state = glide_state,
         get_current_snapshot = function() return current_snapshot end
+    })
+
+    -- initialize info banner
+    info_banner_mod.init({
+        metro = metro
     })
 
     -- start grid refresh metro
@@ -469,7 +485,12 @@ function grid.key(x, y, z)
         get_mode_names = function() return mode_names end,
         get_band_meters = function() return band_meters end,
         set_selected_band = set_selected_band,
-        redraw_grid = redraw_grid
+        redraw_grid = redraw_grid,
+        show_banner = function(msg)
+            if params:get("info_banner") == 2 then
+                info_banner_mod.show(msg)
+            end
+        end
     })
 end
 
@@ -681,6 +702,9 @@ function redraw()
         end
     end
 
+    -- Draw info banner on top of everything
+    info_banner_mod.draw()
+
     screen.update()
 end
 
@@ -852,7 +876,7 @@ function add_params()
     -- Current state is now managed by the params system
 
     -- global controls
-    params:add_group("global", 1)
+    params:add_group("global", 3)
     params:add {
         type = "control",
         id = "q",
@@ -873,6 +897,14 @@ function add_params()
         name = "glide",
         controlspec = controlspec.new(0, 20, 'lin', 0.01, 0.1, 's'),
         formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+
+    params:add {
+        type = "option",
+        id = "info_banner",
+        name = "Info Banner",
+        options = { "Off", "On" },
+        default = 2
     }
 
     -- Individual band parameters for current state (hidden from UI)

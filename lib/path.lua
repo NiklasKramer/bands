@@ -23,6 +23,11 @@ function Path.toggle_path_mode()
 
     redraw() -- Update screen to show path mode status
     -- Grid will be updated by metro_grid_refresh
+
+    -- Show info banner
+    if Path.show_banner then
+        Path.show_banner(path_state.mode and "Path Mode: On" or "Path Mode: Off")
+    end
 end
 
 -- Toggle path recording/playback
@@ -152,6 +157,7 @@ function Path.init(deps)
     params = deps.params
     path_state = deps.path_state
     glide_state = deps.glide_state
+    Path.show_banner = deps.show_banner
 end
 
 return Path
