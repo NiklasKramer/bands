@@ -6,6 +6,33 @@ Engine_Bands : CroneEngine {
     alloc {
         var freqs;
         
+        // Input source synth - selectable between audio in, noise, and dust
+        SynthDef(\inputSource, { |outBus = 0, sourceType = 0, noiseLevel = 0.1, dustDensity = 10, noiseLfoRate = 0, noiseLfoDepth = 1.0|
+            var sig, audioIn, noise, dust, noiseLfo, lfoMin, sourceTypeLag;
+            
+            // Generate all three source types
+            audioIn = SoundIn.ar([0, 1]);  // Stereo audio input
+            
+            // Pink noise with optional LFO modulation
+            // Depth controls how deep the LFO goes (0.0 = no modulation, 1.0 = full range)
+            lfoMin = 1.0 - noiseLfoDepth;  // Calculate minimum level based on depth
+            noiseLfo = Select.kr(noiseLfoRate > 0, [
+                1.0,  // No LFO when rate is 0
+                LFTri.kr(noiseLfoRate).range(lfoMin, 1.0)  // LFO with variable depth
+            ]);
+            noise = PinkNoise.ar([noiseLevel* 0.5 * noiseLfo, noiseLevel * noiseLfo]);
+            
+            // Musical dust - random impulses with resonant filtering
+            dust = Dust2.ar([dustDensity, dustDensity]);  // Bipolar impulses (more dynamic)    
+            dust = dust * 0.3;  // Scale down after resonance boost
+            
+            // Smooth crossfade between sources using SelectX with lag
+            sourceTypeLag = Lag.kr(sourceType.clip(0, 2), 0.5);  // 0.5 second crossfade
+            sig = SelectX.ar(sourceTypeLag, [audioIn, noise, dust]);
+            
+            Out.ar(outBus, sig);
+        }).add;
+        
         // Final limiter synth for summed output
         SynthDef(\finalLimiter, { |inBus = 0, outBus = 0|
             var sig;
@@ -74,10 +101,27 @@ Engine_Bands : CroneEngine {
         // allocate per-band meter buses as individual control buses
         ~meterBuses = freqs.collect { Bus.control(context.server, 1) };
 
+        // Create an internal bus for input source
+        ~inputBus = Bus.audio(context.server, 2);
+        
         // Create an internal bus for summing all bands
         ~sumBus = Bus.audio(context.server, 2);
         
         ~bandGroup = Group.head(context.xg);
+        
+        // Create input source synth at the head of the group
+        ~inputSource = Synth.head(
+            ~bandGroup,
+            \inputSource,
+            [
+                \outBus, ~inputBus,
+                \sourceType, 0,  // Default to audio input
+                \noiseLevel, 0.1,
+                \dustDensity, 10,
+                \noiseLfoRate, 0,
+                \noiseLfoDepth, 1.0
+            ]
+        );
         ~bands = freqs.collect { |f, i|
             var ftype;
             // First band = lowpass (0), last band = highpass (2), middle bands = bandpass (1)
@@ -90,7 +134,7 @@ Engine_Bands : CroneEngine {
                 ~bandGroup,
                 \specBand,
                 [
-                    \inBus, context.in_b,
+                    \inBus, ~inputBus,  // Use input bus instead of direct audio in
                     \outBus, ~sumBus,  // Output to sum bus instead of direct out
                     \freq, f,
                     \q, 6.0,
@@ -174,14 +218,61 @@ Engine_Bands : CroneEngine {
                 ~bands.do({ |s| s.set(\decimateSmoothing, smoothing) });
             };
         });
+        
+        // set input source type (0=audio in, 1=noise, 2=dust)
+        this.addCommand("input_source", "i", { arg msg;
+            var sourceType;
+            sourceType = msg[1].clip(0, 2);
+            if(~inputSource.notNil) {
+                ~inputSource.set(\sourceType, sourceType);
+            };
+        });
+        
+        // set noise level for noise source (0.0 to 1.0)
+        this.addCommand("noise_level", "f", { arg msg;
+            var level;
+            level = msg[1].clip(0.0, 1.0);
+            if(~inputSource.notNil) {
+                ~inputSource.set(\noiseLevel, level);
+            };
+        });
+        
+        // set dust density for dust source (impulses per second)
+        this.addCommand("dust_density", "f", { arg msg;
+            var density;
+            density = msg[1].clip(1, 1000);
+            if(~inputSource.notNil) {
+                ~inputSource.set(\dustDensity, density);
+            };
+        });
+        
+        // set noise LFO rate (0 = off, 0.01-20 Hz)
+        this.addCommand("noise_lfo_rate", "f", { arg msg;
+            var rate;
+            rate = msg[1].clip(0, 20);
+            if(~inputSource.notNil) {
+                ~inputSource.set(\noiseLfoRate, rate);
+            };
+        });
+        
+        // set noise LFO depth (0.0 = no modulation, 1.0 = full depth)
+        this.addCommand("noise_lfo_depth", "f", { arg msg;
+            var depth;
+            depth = msg[1].clip(0.0, 1.0);
+            if(~inputSource.notNil) {
+                ~inputSource.set(\noiseLfoDepth, depth);
+            };
+        });
     }
 
     // ---- Teardown ------------------------------------------------------------
     free {
         if(~finalLimiter.notNil) { ~finalLimiter.free; ~finalLimiter = nil; };
+        if(~inputSource.notNil) { ~inputSource.free; ~inputSource = nil; };
         if(~bands.notNil) { ~bands.do({ |x| x.free }); ~bands = nil; };
         if(~bandGroup.notNil) { ~bandGroup.free; ~bandGroup = nil; };
         if(~sumBus.notNil) { ~sumBus.free; ~sumBus = nil; };
+        if(~inputBus.notNil) { ~inputBus.free; ~inputBus = nil; };
         if(~meterBuses.notNil) { ~meterBuses.do({ |b| if(b.notNil) { b.free } }); ~meterBuses = nil; };
         super.free;
     }

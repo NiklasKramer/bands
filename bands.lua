@@ -1105,7 +1105,7 @@ function add_params()
     -- Current state is now managed by the params system
 
     -- global controls
-    params:add_group("global", 4)
+    params:add_group("global", 9)
     params:add {
         type = "control",
         id = "q",
@@ -1145,6 +1145,70 @@ function add_params()
         name = "Info Banner",
         options = { "Off", "On" },
         default = 2
+    }
+
+    params:add {
+        type = "option",
+        id = "input_source",
+        name = "Input Source",
+        options = { "Audio In", "Noise", "Dust" },
+        default = 1,
+        action = function(value)
+            if engine and engine.input_source then
+                engine.input_source(value - 1) -- Convert 1-based to 0-based
+            end
+        end
+    }
+
+    params:add {
+        type = "control",
+        id = "noise_level",
+        name = "Noise Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.1),
+        formatter = function(p) return string.format("%.2f", p:get()) end,
+        action = function(level)
+            if engine and engine.noise_level then engine.noise_level(level) end
+        end
+    }
+
+    params:add {
+        type = "control",
+        id = "dust_density",
+        name = "Dust Density",
+        controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
+        formatter = function(p) return string.format("%.0f Hz", p:get()) end,
+        action = function(density)
+            if engine and engine.dust_density then engine.dust_density(density) end
+        end
+    }
+
+    params:add {
+        type = "control",
+        id = "noise_lfo_rate",
+        name = "Noise LFO Rate",
+        controlspec = controlspec.new(0, 20, 'lin', 0.01, 0, 'Hz'),
+        formatter = function(p)
+            local val = p:get()
+            if val == 0 then
+                return "Off"
+            else
+                return string.format("%.2f Hz", val)
+            end
+        end,
+        action = function(rate)
+            if engine and engine.noise_lfo_rate then engine.noise_lfo_rate(rate) end
+        end
+    }
+
+    params:add {
+        type = "control",
+        id = "noise_lfo_depth",
+        name = "Noise LFO Depth",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.0f%%", p:get() * 100) end,
+        action = function(depth)
+            if engine and engine.noise_lfo_depth then engine.noise_lfo_depth(depth) end
+        end
     }
 
     -- Individual band parameters for current state (hidden from UI)
