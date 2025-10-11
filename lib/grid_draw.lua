@@ -48,7 +48,8 @@ function GridDraw.draw_parameter_indicators(g, col, i)
     elseif grid_ui_state.grid_mode == 3 then
         -- Get threshold from current state (passed as dependency)
         local thresh = params:get(string.format("band_%02d_thresh", i))
-        local thresh_y = util.round(thresh * 14 + 1)
+        -- Scale 0-0.2 range to full grid (1-15)
+        local thresh_y = util.round((thresh / 0.2) * 14 + 1)
         thresh_y = util.clamp(thresh_y, 1, 15)
         g:led(col, thresh_y, 4)
     elseif grid_ui_state.grid_mode == 4 then

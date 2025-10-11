@@ -655,9 +655,9 @@ function redraw()
             local x = start_x + (i - 1) * indicator_spacing
             local thresh = params:get(string.format("band_%02d_thresh", i))
 
-            -- Convert threshold (0.0 to 1.0) to position (0 to indicator_height)
+            -- Convert threshold (0.0 to 0.2) to position (0 to indicator_height)
             -- Higher thresholds appear higher on screen
-            local thresh_position = thresh * indicator_height
+            local thresh_position = (thresh / 0.2) * indicator_height
             thresh_position = math.max(0, math.min(indicator_height, thresh_position))
 
             -- Draw background line
@@ -934,9 +934,9 @@ function key(n, z)
                 -- Save to current snapshot
                 store_snapshot(current_snapshot)
             elseif grid_ui_state.grid_mode == 3 then
-                -- Randomize thresholds (0.0 to 1.0)
+                -- Randomize thresholds (0.0 to 0.2)
                 for i = 1, #freqs do
-                    local random_thresh = math.random() -- Returns value between 0.0 and 1.0
+                    local random_thresh = math.random() * 0.2 -- Returns value between 0.0 and 0.2
                     params:set(string.format("band_%02d_thresh", i), random_thresh)
                 end
                 -- Save to current snapshot
@@ -1175,8 +1175,8 @@ function add_params()
             type = "control",
             id = string.format("band_%02d_thresh", i),
             name = string.format("Band %02d Thresh", i),
-            controlspec = controlspec.new(0, 1, 'lin', 0.01, 0),
-            formatter = function(p) return string.format("%.2f", p:get()) end,
+            controlspec = controlspec.new(0, 0.2, 'lin', 0.001, 0),
+            formatter = function(p) return string.format("%.3f", p:get()) end,
             hidden = true,
             action = function(thresh)
                 if engine and engine.thresh_band then engine.thresh_band(i, thresh) end
@@ -1226,8 +1226,8 @@ function add_params()
             type = "control",
             id = string.format("snapshot_a_%02d_thresh", i),
             name = string.format("%02d Thresh", i),
-            controlspec = controlspec.new(0, 1, 'lin', 0.01, 0),
-            formatter = function(p) return string.format("%.2f", p:get()) end
+            controlspec = controlspec.new(0, 0.2, 'lin', 0.001, 0),
+            formatter = function(p) return string.format("%.3f", p:get()) end
         }
         params:add {
             type = "control",
@@ -1268,8 +1268,8 @@ function add_params()
             type = "control",
             id = string.format("snapshot_b_%02d_thresh", i),
             name = string.format("%02d Thresh", i),
-            controlspec = controlspec.new(0, 1, 'lin', 0.01, 0),
-            formatter = function(p) return string.format("%.2f", p:get()) end
+            controlspec = controlspec.new(0, 0.2, 'lin', 0.001, 0),
+            formatter = function(p) return string.format("%.3f", p:get()) end
         }
         params:add {
             type = "control",
@@ -1310,8 +1310,8 @@ function add_params()
             type = "control",
             id = string.format("snapshot_c_%02d_thresh", i),
             name = string.format("%02d Thresh", i),
-            controlspec = controlspec.new(0, 1, 'lin', 0.01, 0),
-            formatter = function(p) return string.format("%.2f", p:get()) end
+            controlspec = controlspec.new(0, 0.2, 'lin', 0.001, 0),
+            formatter = function(p) return string.format("%.3f", p:get()) end
         }
         params:add {
             type = "control",
@@ -1352,8 +1352,8 @@ function add_params()
             type = "control",
             id = string.format("snapshot_d_%02d_thresh", i),
             name = string.format("%02d Thresh", i),
-            controlspec = controlspec.new(0, 1, 'lin', 0.01, 0),
-            formatter = function(p) return string.format("%.2f", p:get()) end
+            controlspec = controlspec.new(0, 0.2, 'lin', 0.001, 0),
+            formatter = function(p) return string.format("%.3f", p:get()) end
         }
         params:add {
             type = "control",

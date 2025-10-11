@@ -15,8 +15,8 @@ function Helper.row_to_pan(y)
 end
 
 function Helper.row_to_threshold(y)
-    -- row 1 = 0.0, row 15 = 1.0
-    return (y - 1) / 14
+    -- row 1 = 0.0, row 15 = 0.2 (20% of original range)
+    return ((y - 1) / 14) * 0.2
 end
 
 function Helper.row_to_decimate(y)
@@ -40,8 +40,8 @@ function Helper.pan_to_row(pan)
 end
 
 function Helper.threshold_to_row(thresh)
-    -- inverse of: thresh = (y - 1) / 14
-    local thresh_y = util.round(thresh * 14 + 1)
+    -- inverse of: thresh = ((y - 1) / 14) * 0.2
+    local thresh_y = util.round((thresh / 0.2) * 14 + 1)
     return util.clamp(thresh_y, 1, 15)
 end
 
