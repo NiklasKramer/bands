@@ -14,8 +14,9 @@ Engine_Bands : CroneEngine {
             Out.ar(outBus, sig);
         }).add;
         
-        SynthDef(\specBand, { |inBus = 0, outBus = 0, freq = 1000, q = 1.0, level = 0.0, pan = 0.0, meterBus = -1, ampAtk = 0.01, ampRel = 0.08, thresh = 1.0, decimateRate = 48000, decimateSmoothing = 1|
+        SynthDef(\specBand, { |inBus = 0, outBus = 0, freq = 1000, q = 1.0, level = 0.0, pan = 0.0, meterBus = -1, ampAtk = 0.01, ampRel = 0.08, thresh = 1.0, decimateRate = 48000, decimateSmoothing = 1, filterType = 1|
             var src, sig, gain, bwidth, meter, open, cutoff, dark, outSig, meter_db, meter_normalized, gate_level, gate_open;
+            var lowpass, bandpass, highpass;
 
             src = In.ar(inBus, 2);
 
@@ -25,14 +26,23 @@ Engine_Bands : CroneEngine {
             gain   = Lag.kr(level.dbamp, 0.02);
             pan    = Lag.kr(pan.clip(-1, 1), 0.02);
 
-            // SVF bandpass only (others set to 0)
+            // Apply sample rate reduction (decimation) - before filter
+            sig = SmoothDecimator.ar(src, decimateRate.clip(100, 48000), decimateSmoothing.clip(0, 1));
+
+            // Set filter type levels based on filterType parameter
+            // filterType: 0=lowpass, 1=bandpass (default), 2=highpass
+            lowpass = Select.kr(filterType.clip(0, 2), [1.0, 0.0, 0.0]);
+            bandpass = Select.kr(filterType.clip(0, 2), [0.0, 1.0, 0.0]);
+            highpass = Select.kr(filterType.clip(0, 2), [0.0, 0.0, 1.0]);
+            
+            // SVF with filter type controlled by level parameters
             sig = SVF.ar(
-                src,
+                sig,
                 freq,
                 (bwidth / freq).clip(0.0005, 1.0), // res
-                0,   // lowpass
-                1,   // bandpass
-                0,   // highpass
+                lowpass,   // lowpass level
+                bandpass,  // bandpass level
+                highpass,  // highpass level
                 0,   // notch
                 0    // peak
             );
@@ -42,9 +52,6 @@ Engine_Bands : CroneEngine {
             gate_open = (gate_level > thresh).asFloat; // 1 if above threshold, 0 if below
             gate_open = Lag.kr(gate_open, 0.1); // smooth gate transitions
             sig = sig * gate_open; // simple VCA
-            
-            // Apply sample rate reduction (decimation)
-            sig = SmoothDecimator.ar(sig, decimateRate.clip(100, 48000), decimateSmoothing.clip(0, 1));
     
             outSig = Balance2.ar(sig[0] * gain, sig[1] * gain, pan, 1);
             
@@ -72,6 +79,13 @@ Engine_Bands : CroneEngine {
         
         ~bandGroup = Group.head(context.xg);
         ~bands = freqs.collect { |f, i|
+            var ftype;
+            // First band = lowpass (0), last band = highpass (2), middle bands = bandpass (1)
+            ftype = case
+                { i == 0 } { 0 }
+                { i == (freqs.size - 1) } { 2 }
+                { 1 };
+            
             Synth.tail(
                 ~bandGroup,
                 \specBand,
@@ -82,7 +96,8 @@ Engine_Bands : CroneEngine {
                     \q, 6.0,
                     \level, -12.0,
                     \pan, (i.linlin(0, (freqs.size - 1).max(1), -0.5, 0.5)),
-                    \meterBus, (~meterBuses[i].index)
+                    \meterBus, (~meterBuses[i].index),
+                    \filterType, ftype
                 ]
             )
         };

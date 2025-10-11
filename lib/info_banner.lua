@@ -10,8 +10,8 @@ local default_config = {
     screen_h = 64,
     default_position = "center",
     auto_hide_time = 0.6,
-    min_banner_width = 40,
-    padding = 5,
+    min_banner_width = 10,
+    padding = 2,
     banner_height = 10
 }
 
@@ -45,10 +45,8 @@ function InfoBanner.show(message, position)
         info_banner_text = message
         show_info_banner = true
 
-        -- Set the position if provided
-        if position then
-            banner_position = position
-        end
+        -- Set the position (default to center if not provided)
+        banner_position = position or config.default_position
 
         metro_info_banner:stop()
         metro_info_banner:start()
@@ -85,7 +83,7 @@ function InfoBanner.draw()
 
     -- Measure the text width
     local text_width = screen.text_extents(info_banner_text)
-    local banner_width = math.max(text_width + padding, min_banner_width)
+    local banner_width = math.max(text_width + (padding * 2), min_banner_width)
 
     local banner_x, banner_y
 
@@ -112,15 +110,15 @@ function InfoBanner.draw()
     screen.rect(banner_x, banner_y, banner_width, banner_height)
     screen.fill()
 
-    -- Draw banner text
+    -- Draw banner text (centered)
     screen.level(15)
     screen.font_face(1)
     screen.font_size(8)
-    local text_x = banner_x + (banner_width - text_width) / 2
+    local text_x = banner_x + (banner_width / 2)
     local text_y = banner_y + banner_height - 3
 
     screen.move(text_x, text_y)
-    screen.text(info_banner_text)
+    screen.text_center(info_banner_text)
 end
 
 -- Update configuration (call this if you need to change settings)
