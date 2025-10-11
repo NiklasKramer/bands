@@ -79,10 +79,11 @@ local current_snapshot = "A"
 local function init_current_state()
     -- Initialize from current snapshot (A by default)
     params:set("q", params:get("snapshot_a_q"))
-    
+
     -- Initialize input settings from snapshot A
-    params:set("input_source", params:get("snapshot_a_input_source"))
+    params:set("audio_in_level", params:get("snapshot_a_audio_in_level"))
     params:set("noise_level", params:get("snapshot_a_noise_level"))
+    params:set("dust_level", params:get("snapshot_a_dust_level"))
     params:set("noise_lfo_rate", params:get("snapshot_a_noise_lfo_rate"))
     params:set("noise_lfo_depth", params:get("snapshot_a_noise_lfo_depth"))
     params:set("dust_density", params:get("snapshot_a_dust_density"))
@@ -112,10 +113,11 @@ end
 local function store_snapshot(snapshot_name)
     -- Store to Norns params for persistence
     params:set("snapshot_" .. string.lower(snapshot_name) .. "_q", params:get("q"))
-    
+
     -- Store input settings
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_input_source", params:get("input_source"))
+    params:set("snapshot_" .. string.lower(snapshot_name) .. "_audio_in_level", params:get("audio_in_level"))
     params:set("snapshot_" .. string.lower(snapshot_name) .. "_noise_level", params:get("noise_level"))
+    params:set("snapshot_" .. string.lower(snapshot_name) .. "_dust_level", params:get("dust_level"))
     params:set("snapshot_" .. string.lower(snapshot_name) .. "_noise_lfo_rate", params:get("noise_lfo_rate"))
     params:set("snapshot_" .. string.lower(snapshot_name) .. "_noise_lfo_depth", params:get("noise_lfo_depth"))
     params:set("snapshot_" .. string.lower(snapshot_name) .. "_dust_density", params:get("dust_density"))
@@ -143,6 +145,14 @@ local function recall_snapshot(snapshot_name)
     -- Read from Norns params and update current state
     local snapshot_q = params:get("snapshot_" .. string.lower(snapshot_name) .. "_q")
     params:set("q", snapshot_q)
+
+    -- Recall input settings
+    params:set("audio_in_level", params:get("snapshot_" .. string.lower(snapshot_name) .. "_audio_in_level"))
+    params:set("noise_level", params:get("snapshot_" .. string.lower(snapshot_name) .. "_noise_level"))
+    params:set("dust_level", params:get("snapshot_" .. string.lower(snapshot_name) .. "_dust_level"))
+    params:set("noise_lfo_rate", params:get("snapshot_" .. string.lower(snapshot_name) .. "_noise_lfo_rate"))
+    params:set("noise_lfo_depth", params:get("snapshot_" .. string.lower(snapshot_name) .. "_noise_lfo_depth"))
+    params:set("dust_density", params:get("snapshot_" .. string.lower(snapshot_name) .. "_dust_density"))
 
     for i = 1, #freqs do
         local level_id = string.format("snapshot_%s_%02d_level", string.lower(snapshot_name), i)
@@ -189,6 +199,37 @@ function apply_blend(x, y, old_x, old_y)
         params:get("snapshot_b_q") * b_w +
         params:get("snapshot_c_q") * c_w +
         params:get("snapshot_d_q") * d_w
+
+    -- Blend input settings (all can blend smoothly now)
+    target_values.audio_in_level = params:get("snapshot_a_audio_in_level") * a_w +
+        params:get("snapshot_b_audio_in_level") * b_w +
+        params:get("snapshot_c_audio_in_level") * c_w +
+        params:get("snapshot_d_audio_in_level") * d_w
+
+    target_values.noise_level = params:get("snapshot_a_noise_level") * a_w +
+        params:get("snapshot_b_noise_level") * b_w +
+        params:get("snapshot_c_noise_level") * c_w +
+        params:get("snapshot_d_noise_level") * d_w
+
+    target_values.dust_level = params:get("snapshot_a_dust_level") * a_w +
+        params:get("snapshot_b_dust_level") * b_w +
+        params:get("snapshot_c_dust_level") * c_w +
+        params:get("snapshot_d_dust_level") * d_w
+
+    target_values.noise_lfo_rate = params:get("snapshot_a_noise_lfo_rate") * a_w +
+        params:get("snapshot_b_noise_lfo_rate") * b_w +
+        params:get("snapshot_c_noise_lfo_rate") * c_w +
+        params:get("snapshot_d_noise_lfo_rate") * d_w
+
+    target_values.noise_lfo_depth = params:get("snapshot_a_noise_lfo_depth") * a_w +
+        params:get("snapshot_b_noise_lfo_depth") * b_w +
+        params:get("snapshot_c_noise_lfo_depth") * c_w +
+        params:get("snapshot_d_noise_lfo_depth") * d_w
+
+    target_values.dust_density = params:get("snapshot_a_dust_density") * a_w +
+        params:get("snapshot_b_dust_density") * b_w +
+        params:get("snapshot_c_dust_density") * c_w +
+        params:get("snapshot_d_dust_density") * d_w
 
     -- Blend per-band parameters from params
     for i = 1, #freqs do
@@ -241,6 +282,20 @@ function apply_blend(x, y, old_x, old_y)
             current_values.q = glide_state.current_values.q +
                 (glide_state.target_values.q - glide_state.current_values.q) * progress
 
+            -- Interpolate input settings
+            current_values.audio_in_level = glide_state.current_values.audio_in_level +
+                (glide_state.target_values.audio_in_level - glide_state.current_values.audio_in_level) * progress
+            current_values.noise_level = glide_state.current_values.noise_level +
+                (glide_state.target_values.noise_level - glide_state.current_values.noise_level) * progress
+            current_values.dust_level = glide_state.current_values.dust_level +
+                (glide_state.target_values.dust_level - glide_state.current_values.dust_level) * progress
+            current_values.noise_lfo_rate = glide_state.current_values.noise_lfo_rate +
+                (glide_state.target_values.noise_lfo_rate - glide_state.current_values.noise_lfo_rate) * progress
+            current_values.noise_lfo_depth = glide_state.current_values.noise_lfo_depth +
+                (glide_state.target_values.noise_lfo_depth - glide_state.current_values.noise_lfo_depth) * progress
+            current_values.dust_density = glide_state.current_values.dust_density +
+                (glide_state.target_values.dust_density - glide_state.current_values.dust_density) * progress
+
             for i = 1, #freqs do
                 local level_id = string.format("band_%02d_level", i)
                 local pan_id = string.format("band_%02d_pan", i)
@@ -283,6 +338,13 @@ function apply_blend(x, y, old_x, old_y)
             -- Store current parameter values as starting point
             glide_state.current_values = {}
             glide_state.current_values.q = params:get("q")
+            glide_state.current_values.audio_in_level = params:get("audio_in_level")
+            glide_state.current_values.noise_level = params:get("noise_level")
+            glide_state.current_values.dust_level = params:get("dust_level")
+            glide_state.current_values.noise_lfo_rate = params:get("noise_lfo_rate")
+            glide_state.current_values.noise_lfo_depth = params:get("noise_lfo_depth")
+            glide_state.current_values.dust_density = params:get("dust_density")
+
             for i = 1, #freqs do
                 local level_id = string.format("band_%02d_level", i)
                 local pan_id = string.format("band_%02d_pan", i)
@@ -309,6 +371,13 @@ function apply_blend(x, y, old_x, old_y)
     else
         -- Apply immediately to params (this will update the engine automatically)
         params:set("q", target_values.q)
+        params:set("audio_in_level", target_values.audio_in_level)
+        params:set("noise_level", target_values.noise_level)
+        params:set("dust_level", target_values.dust_level)
+        params:set("noise_lfo_rate", target_values.noise_lfo_rate)
+        params:set("noise_lfo_depth", target_values.noise_lfo_depth)
+        params:set("dust_density", target_values.dust_density)
+
         for i = 1, #freqs do
             local level_id = string.format("band_%02d_level", i)
             local pan_id = string.format("band_%02d_pan", i)
@@ -1119,7 +1188,7 @@ function add_params()
     -- Current state is now managed by the params system
 
     -- global controls
-    params:add_group("global", 9)
+    params:add_group("global", 10)
     params:add {
         type = "control",
         id = "q",
@@ -1162,15 +1231,13 @@ function add_params()
     }
 
     params:add {
-        type = "option",
-        id = "input_source",
-        name = "Input Source",
-        options = { "Audio In", "Noise", "Dust" },
-        default = 1,
-        action = function(value)
-            if engine and engine.input_source then
-                engine.input_source(value - 1) -- Convert 1-based to 0-based
-            end
+        type = "control",
+        id = "audio_in_level",
+        name = "Audio In Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end,
+        action = function(level)
+            if engine and engine.audio_in_level then engine.audio_in_level(level) end
         end
     }
 
@@ -1178,10 +1245,21 @@ function add_params()
         type = "control",
         id = "noise_level",
         name = "Noise Level",
-        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.1),
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(level)
             if engine and engine.noise_level then engine.noise_level(level) end
+        end
+    }
+
+    params:add {
+        type = "control",
+        id = "dust_level",
+        name = "Dust Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end,
+        action = function(level)
+            if engine and engine.dust_level then engine.dust_level(level) end
         end
     }
 
@@ -1275,13 +1353,64 @@ function add_params()
 
     -- Add snapshot parameters for persistence
     -- Snapshot A
-    params:add_group("snapshot A", 65)
+    params:add_group("snapshot A", 71)
     params:add {
         type = "control",
         id = "snapshot_a_q",
         name = "Q",
         controlspec = controlspec.new(1, 2, 'lin', 0, 1.1, ''),
         formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+
+    -- Input source settings for snapshot A
+    params:add {
+        type = "control",
+        id = "snapshot_a_audio_in_level",
+        name = "Audio In Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_a_noise_level",
+        name = "Noise Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_a_dust_level",
+        name = "Dust Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_a_noise_lfo_rate",
+        name = "Noise LFO Rate",
+        controlspec = controlspec.new(0, 20, 'lin', 0.01, 0, 'Hz'),
+        formatter = function(p)
+            local val = p:get()
+            if val == 0 then
+                return "Off"
+            else
+                return string.format("%.2f Hz", val)
+            end
+        end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_a_noise_lfo_depth",
+        name = "Noise LFO Depth",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.0f%%", p:get() * 100) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_a_dust_density",
+        name = "Dust Density",
+        controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
+        formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
 
     for i = 1, num do
@@ -1317,13 +1446,64 @@ function add_params()
     end
 
     -- Snapshot B
-    params:add_group("snapshot B", 65)
+    params:add_group("snapshot B", 71)
     params:add {
         type = "control",
         id = "snapshot_b_q",
         name = "Q",
         controlspec = controlspec.new(1, 2, 'lin', 0, 1.1, ''),
         formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+
+    -- Input source settings for snapshot B
+    params:add {
+        type = "control",
+        id = "snapshot_b_audio_in_level",
+        name = "Audio In Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_b_noise_level",
+        name = "Noise Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_b_dust_level",
+        name = "Dust Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_b_noise_lfo_rate",
+        name = "Noise LFO Rate",
+        controlspec = controlspec.new(0, 20, 'lin', 0.01, 0, 'Hz'),
+        formatter = function(p)
+            local val = p:get()
+            if val == 0 then
+                return "Off"
+            else
+                return string.format("%.2f Hz", val)
+            end
+        end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_b_noise_lfo_depth",
+        name = "Noise LFO Depth",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.0f%%", p:get() * 100) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_b_dust_density",
+        name = "Dust Density",
+        controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
+        formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
 
     for i = 1, num do
@@ -1359,13 +1539,64 @@ function add_params()
     end
 
     -- Snapshot C
-    params:add_group("snapshot C", 65)
+    params:add_group("snapshot C", 71)
     params:add {
         type = "control",
         id = "snapshot_c_q",
         name = "Q",
         controlspec = controlspec.new(1, 2, 'lin', 0, 1.1, ''),
         formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+
+    -- Input source settings for snapshot C
+    params:add {
+        type = "control",
+        id = "snapshot_c_audio_in_level",
+        name = "Audio In Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_c_noise_level",
+        name = "Noise Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_c_dust_level",
+        name = "Dust Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_c_noise_lfo_rate",
+        name = "Noise LFO Rate",
+        controlspec = controlspec.new(0, 20, 'lin', 0.01, 0, 'Hz'),
+        formatter = function(p)
+            local val = p:get()
+            if val == 0 then
+                return "Off"
+            else
+                return string.format("%.2f Hz", val)
+            end
+        end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_c_noise_lfo_depth",
+        name = "Noise LFO Depth",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.0f%%", p:get() * 100) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_c_dust_density",
+        name = "Dust Density",
+        controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
+        formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
 
     for i = 1, num do
@@ -1401,13 +1632,64 @@ function add_params()
     end
 
     -- Snapshot D
-    params:add_group("snapshot D", 65)
+    params:add_group("snapshot D", 71)
     params:add {
         type = "control",
         id = "snapshot_d_q",
         name = "Q",
         controlspec = controlspec.new(1, 2, 'lin', 0, 1.1, ''),
         formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+
+    -- Input source settings for snapshot D
+    params:add {
+        type = "control",
+        id = "snapshot_d_audio_in_level",
+        name = "Audio In Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_d_noise_level",
+        name = "Noise Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_d_dust_level",
+        name = "Dust Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_d_noise_lfo_rate",
+        name = "Noise LFO Rate",
+        controlspec = controlspec.new(0, 20, 'lin', 0.01, 0, 'Hz'),
+        formatter = function(p)
+            local val = p:get()
+            if val == 0 then
+                return "Off"
+            else
+                return string.format("%.2f Hz", val)
+            end
+        end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_d_noise_lfo_depth",
+        name = "Noise LFO Depth",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.0f%%", p:get() * 100) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_d_dust_density",
+        name = "Dust Density",
+        controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
+        formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
 
     for i = 1, num do

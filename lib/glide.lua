@@ -26,6 +26,27 @@ function Glide.complete_glide()
     if engine and engine.q then
         engine.q(glide_state.target_values.q)
     end
+
+    -- Set final input settings
+    if glide_state.target_values.audio_in_level and engine and engine.audio_in_level then
+        engine.audio_in_level(glide_state.target_values.audio_in_level)
+    end
+    if glide_state.target_values.noise_level and engine and engine.noise_level then
+        engine.noise_level(glide_state.target_values.noise_level)
+    end
+    if glide_state.target_values.dust_level and engine and engine.dust_level then
+        engine.dust_level(glide_state.target_values.dust_level)
+    end
+    if glide_state.target_values.noise_lfo_rate and engine and engine.noise_lfo_rate then
+        engine.noise_lfo_rate(glide_state.target_values.noise_lfo_rate)
+    end
+    if glide_state.target_values.noise_lfo_depth and engine and engine.noise_lfo_depth then
+        engine.noise_lfo_depth(glide_state.target_values.noise_lfo_depth)
+    end
+    if glide_state.target_values.dust_density and engine and engine.dust_density then
+        engine.dust_density(glide_state.target_values.dust_density)
+    end
+
     for i = 1, #freqs do
         local level_id = string.format("band_%02d_level", i)
         local pan_id = string.format("band_%02d_pan", i)
@@ -94,6 +115,31 @@ function Glide.update_glide_parameters(progress)
 
     -- Update params (this will update the engine automatically)
     params:set("q", current_q)
+
+    -- Update input settings
+    local current_audio_in_level = glide_state.current_values.audio_in_level +
+        (glide_state.target_values.audio_in_level - glide_state.current_values.audio_in_level) * progress
+    params:set("audio_in_level", current_audio_in_level)
+
+    local current_noise_level = glide_state.current_values.noise_level +
+        (glide_state.target_values.noise_level - glide_state.current_values.noise_level) * progress
+    params:set("noise_level", current_noise_level)
+
+    local current_dust_level = glide_state.current_values.dust_level +
+        (glide_state.target_values.dust_level - glide_state.current_values.dust_level) * progress
+    params:set("dust_level", current_dust_level)
+
+    local current_noise_lfo_rate = glide_state.current_values.noise_lfo_rate +
+        (glide_state.target_values.noise_lfo_rate - glide_state.current_values.noise_lfo_rate) * progress
+    params:set("noise_lfo_rate", current_noise_lfo_rate)
+
+    local current_noise_lfo_depth = glide_state.current_values.noise_lfo_depth +
+        (glide_state.target_values.noise_lfo_depth - glide_state.current_values.noise_lfo_depth) * progress
+    params:set("noise_lfo_depth", current_noise_lfo_depth)
+
+    local current_dust_density = glide_state.current_values.dust_density +
+        (glide_state.target_values.dust_density - glide_state.current_values.dust_density) * progress
+    params:set("dust_density", current_dust_density)
 
     -- Update matrix position during glide
     grid_ui_state.current_matrix_pos.x = glide_state.start_pos.x +

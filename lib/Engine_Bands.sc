@@ -6,9 +6,9 @@ Engine_Bands : CroneEngine {
     alloc {
         var freqs;
         
-        // Input source synth - selectable between audio in, noise, and dust
-        SynthDef(\inputSource, { |outBus = 0, sourceType = 0, noiseLevel = 0.1, dustDensity = 10, noiseLfoRate = 0, noiseLfoDepth = 1.0|
-            var sig, audioIn, noise, dust, noiseLfo, lfoMin, sourceTypeLag;
+        // Input source synth - blendable between audio in, noise, and dust
+        SynthDef(\inputSource, { |outBus = 0, audioInLevel = 1.0, noiseLevel = 0.1, dustLevel = 0.0, dustDensity = 10, noiseLfoRate = 0, noiseLfoDepth = 1.0|
+            var sig, audioIn, noise, dust, noiseLfo, lfoMin;
             
             // Generate all three source types
             audioIn = SoundIn.ar([0, 1]);  // Stereo audio input
@@ -20,15 +20,14 @@ Engine_Bands : CroneEngine {
                 1.0,  // No LFO when rate is 0
                 LFTri.kr(noiseLfoRate).range(lfoMin, 1.0)  // LFO with variable depth
             ]);
-            noise = PinkNoise.ar([noiseLevel* 0.5 * noiseLfo, noiseLevel * noiseLfo]);
+            noise = PinkNoise.ar([noiseLevel * 0.5 * noiseLfo, noiseLevel * noiseLfo]);
             
             // Musical dust - random impulses with resonant filtering
             dust = Dust2.ar([dustDensity, dustDensity]);  // Bipolar impulses (more dynamic)    
             dust = dust * 0.3;  // Scale down after resonance boost
             
-            // Smooth crossfade between sources using SelectX with lag
-            sourceTypeLag = Lag.kr(sourceType.clip(0, 2), 0.5);  // 0.5 second crossfade
-            sig = SelectX.ar(sourceTypeLag, [audioIn, noise, dust]);
+            // Blend all three sources with individual level controls
+            sig = (audioIn * audioInLevel) + (noise * Lag.kr(noiseLevel > 0, 0.5)) + (dust * Lag.kr(dustLevel, 0.5));
             
             Out.ar(outBus, sig);
         }).add;
@@ -115,8 +114,9 @@ Engine_Bands : CroneEngine {
             \inputSource,
             [
                 \outBus, ~inputBus,
-                \sourceType, 0,  // Default to audio input
+                \audioInLevel, 1.0,  // Audio input on by default
                 \noiseLevel, 0.1,
+                \dustLevel, 0.0,  // Dust off by default
                 \dustDensity, 10,
                 \noiseLfoRate, 0,
                 \noiseLfoDepth, 1.0
@@ -219,12 +219,25 @@ Engine_Bands : CroneEngine {
             };
         });
         
-        // set input source type (0=audio in, 1=noise, 2=dust)
+        // set input source type (0=audio in, 1=noise, 2=dust) - for compatibility
+        // This sets one source to 1.0 and others to 0
         this.addCommand("input_source", "i", { arg msg;
             var sourceType;
             sourceType = msg[1].clip(0, 2);
             if(~inputSource.notNil) {
-                ~inputSource.set(\sourceType, sourceType);
+                case
+                    { sourceType == 0 } { ~inputSource.set(\audioInLevel, 1.0, \noiseLevel, 0.0, \dustLevel, 0.0); }
+                    { sourceType == 1 } { ~inputSource.set(\audioInLevel, 0.0, \noiseLevel, 0.1, \dustLevel, 0.0); }
+                    { sourceType == 2 } { ~inputSource.set(\audioInLevel, 0.0, \noiseLevel, 0.0, \dustLevel, 1.0); };
+            };
+        });
+        
+        // set audio input level (0.0 to 1.0)
+        this.addCommand("audio_in_level", "f", { arg msg;
+            var level;
+            level = msg[1].clip(0.0, 1.0);
+            if(~inputSource.notNil) {
+                ~inputSource.set(\audioInLevel, level);
             };
         });
         
@@ -234,6 +247,15 @@ Engine_Bands : CroneEngine {
             level = msg[1].clip(0.0, 1.0);
             if(~inputSource.notNil) {
                 ~inputSource.set(\noiseLevel, level);
+            };
+        });
+        
+        // set dust level (0.0 to 1.0)
+        this.addCommand("dust_level", "f", { arg msg;
+            var level;
+            level = msg[1].clip(0.0, 1.0);
+            if(~inputSource.notNil) {
+                ~inputSource.set(\dustLevel, level);
             };
         });
         
