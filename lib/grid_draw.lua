@@ -11,7 +11,77 @@ local path_state
 local glide_state
 local get_current_snapshot
 
--- Draw band controls (levels, pans, thresholds)
+-- Draw inputs mode (mode 0)
+function GridDraw.draw_inputs_mode(g, input_mode_state)
+    local helper = include 'lib/helper'
+
+    -- Row 1: Input selector (Live/Noise/Dust)
+    -- Keys 1-6: Live (brightest if selected)
+    for x = 1, 6 do
+        local brightness = (input_mode_state.selected_input == 1) and 15 or 4
+        g:led(x, 1, brightness)
+    end
+    -- Keys 7-11: Noise
+    for x = 7, 11 do
+        local brightness = (input_mode_state.selected_input == 2) and 15 or 4
+        g:led(x, 1, brightness)
+    end
+    -- Keys 12-16: Dust
+    for x = 12, 16 do
+        local brightness = (input_mode_state.selected_input == 3) and 15 or 4
+        g:led(x, 1, brightness)
+    end
+
+    -- Draw parameters based on selected input
+    if input_mode_state.selected_input == 1 then
+        -- Live: Audio In Level (row 2)
+        local audio_level = params:get("audio_in_level")
+        local audio_x = helper.audio_level_to_x(audio_level)
+        for x = 1, 16 do
+            local brightness = (x == audio_x) and 15 or (x < audio_x and 4 or 0)
+            g:led(x, 2, brightness)
+        end
+    elseif input_mode_state.selected_input == 2 then
+        -- Noise: Level, LFO Rate, LFO Depth (rows 2-4)
+        local noise_level = params:get("noise_level")
+        local noise_x = helper.noise_level_to_x(noise_level)
+        for x = 1, 16 do
+            local brightness = (x == noise_x) and 15 or (x < noise_x and 4 or 0)
+            g:led(x, 2, brightness)
+        end
+
+        local lfo_rate = params:get("noise_lfo_rate")
+        local lfo_rate_x = helper.noise_lfo_rate_to_x(lfo_rate)
+        for x = 1, 16 do
+            local brightness = (x == lfo_rate_x) and 15 or (x < lfo_rate_x and 4 or 0)
+            g:led(x, 3, brightness)
+        end
+
+        local lfo_depth = params:get("noise_lfo_depth")
+        local lfo_depth_x = helper.noise_lfo_depth_to_x(lfo_depth)
+        for x = 1, 16 do
+            local brightness = (x == lfo_depth_x) and 15 or (x < lfo_depth_x and 4 or 0)
+            g:led(x, 4, brightness)
+        end
+    elseif input_mode_state.selected_input == 3 then
+        -- Dust: Level, Density (rows 2-3)
+        local dust_level = params:get("dust_level")
+        local dust_x = helper.dust_level_to_x(dust_level)
+        for x = 1, 16 do
+            local brightness = (x == dust_x) and 15 or (x < dust_x and 4 or 0)
+            g:led(x, 2, brightness)
+        end
+
+        local dust_density = params:get("dust_density")
+        local dust_density_x = helper.dust_density_to_x(dust_density)
+        for x = 1, 16 do
+            local brightness = (x == dust_density_x) and 15 or (x < dust_density_x and 4 or 0)
+            g:led(x, 3, brightness)
+        end
+    end
+end
+
+-- Draw band controls (levels, pans, thresholds, decimate)
 function GridDraw.draw_band_controls(g, num)
     for i = 1, math.min(16, num) do
         local meter_v = band_meters[i] or 0
@@ -248,8 +318,8 @@ end
 
 -- Draw mode selector
 function GridDraw.draw_mode_selector(g)
-    for x = 1, 4 do
-        local brightness = (x == grid_ui_state.grid_mode) and 15 or 4
+    for x = 1, 5 do
+        local brightness = (x - 1 == grid_ui_state.grid_mode) and 15 or 4
         g:led(x, 16, brightness)
     end
 end

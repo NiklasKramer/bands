@@ -27,12 +27,18 @@ local freqs = {
     1300, 1600, 2000, 2600, 3500, 5000, 8000, 12000
 }
 
-local mode_names = { "levels", "pans", "thresholds", "decimate", "matrix" }
+local mode_names = { "inputs", "levels", "pans", "thresholds", "decimate", "matrix" }
 local band_meters = {}
 local band_meter_polls
 local grid_ui_state
 local selected_band = 1                      -- Currently selected band (1-16)
 local selected_matrix_pos = { x = 1, y = 1 } -- Selected position for matrix navigation
+
+-- Input mode state
+local input_mode_state = {
+    selected_input = 1, -- 1=live, 2=noise, 3=dust
+    selected_param = 1  -- Selected parameter within the input type
+}
 
 -- Current state is now managed by the params system
 
@@ -440,9 +446,11 @@ function redraw_grid()
 
 
     -- Draw main content based on mode
-    if grid_ui_state.grid_mode ~= 5 then
+    if grid_ui_state.grid_mode == 0 then
+        grid_draw_mod.draw_inputs_mode(g, input_mode_state)
+    elseif grid_ui_state.grid_mode >= 1 and grid_ui_state.grid_mode <= 4 then
         grid_draw_mod.draw_band_controls(g, num)
-    else
+    elseif grid_ui_state.grid_mode == 5 then
         grid_draw_mod.draw_matrix_mode(g)
     end
 
@@ -582,6 +590,7 @@ function grid.key(x, y, z)
         get_freqs = function() return freqs end,
         get_mode_names = function() return mode_names end,
         get_band_meters = function() return band_meters end,
+        get_input_mode_state = function() return input_mode_state end,
         set_selected_band = set_selected_band,
         redraw_grid = redraw_grid,
         show_banner = function(msg)
@@ -622,7 +631,105 @@ function redraw()
     screen.level(15)
 
     -- Mode-specific screens
-    if grid_ui_state.grid_mode == 1 then
+    if grid_ui_state.grid_mode == 0 then
+        -- Inputs mode - Selected input visualization with parameters
+        local input_names = { "Live", "Noise", "Dust" }
+
+        -- Draw input type selector tabs at top
+        screen.font_face(1)
+        screen.font_size(8)
+        for i = 1, 3 do
+            local x_pos = (i - 1) * 36 + 8
+            local brightness = (input_mode_state.selected_input == i) and 15 or 4
+            screen.level(brightness)
+            screen.move(x_pos, 10)
+            screen.text(input_names[i])
+        end
+
+        -- Draw visualization and parameters based on selected input
+        if input_mode_state.selected_input == 1 then
+            -- Live audio - circle visualization
+            local audio_level = params:get("audio_in_level")
+            local audio_x = 40
+            local audio_y = 38
+            local audio_radius = 5 + audio_level * 12
+            screen.level(math.floor(3 + audio_level * 12))
+            screen.circle(audio_x, audio_y, audio_radius)
+            screen.fill()
+
+            -- Display value
+            screen.font_face(1)
+            screen.font_size(8)
+            screen.level(15)
+            screen.move(5, 60)
+            screen.text(string.format("Level: %.2f", audio_level))
+        elseif input_mode_state.selected_input == 2 then
+            -- Noise - horizontal lines
+            local noise_level = params:get("noise_level")
+            local noise_lfo_rate = params:get("noise_lfo_rate")
+            local noise_lfo_depth = params:get("noise_lfo_depth")
+
+            local noise_x = 40
+            local noise_y_start = 20
+            local noise_height = 30
+            if noise_level > 0 then
+                local line_count = math.floor(noise_level * 8) + 1
+                local time_offset = util.time() * (noise_lfo_rate > 0 and noise_lfo_rate or 1)
+                for i = 1, line_count do
+                    local y = noise_y_start + (i - 1) * (noise_height / line_count)
+                    local lfo_offset = 0
+                    if noise_lfo_rate > 0 then
+                        lfo_offset = math.sin(time_offset + i * 0.5) * noise_lfo_depth * 3
+                    end
+                    screen.level(math.floor(3 + noise_level * 12))
+                    screen.move(noise_x - 12 + lfo_offset, y)
+                    screen.line(noise_x + 12 + lfo_offset, y)
+                    screen.stroke()
+                end
+            end
+
+            -- Display values
+            screen.font_face(1)
+            screen.font_size(8)
+            screen.level(15)
+            screen.move(5, 55)
+            screen.text(string.format("Lvl: %.2f", noise_level))
+            screen.move(5, 63)
+            screen.text(string.format("LFO: %.1fHz", noise_lfo_rate))
+        elseif input_mode_state.selected_input == 3 then
+            -- Dust - scattered dots
+            local dust_level = params:get("dust_level")
+            local dust_density = params:get("dust_density")
+
+            if dust_level > 0 then
+                local dust_x = 40
+                local dust_y = 35
+                local dot_count = math.floor(dust_density / 50) + 3
+                local spread = 15
+                math.randomseed(12345)
+                for i = 1, dot_count do
+                    local dx = (math.random() - 0.5) * spread * 2
+                    local dy = (math.random() - 0.5) * spread * 2
+                    local dot_brightness = math.floor(3 + dust_level * 12)
+                    screen.level(dot_brightness)
+                    screen.circle(dust_x + dx, dust_y + dy, 1.5)
+                    screen.fill()
+                end
+            end
+
+            -- Display values
+            screen.font_face(1)
+            screen.font_size(8)
+            screen.level(15)
+            screen.move(5, 55)
+            screen.text(string.format("Lvl: %.2f", dust_level))
+            screen.move(5, 63)
+            screen.text(string.format("Dens: %dHz", dust_density))
+        end
+
+        -- Draw snapshot letters
+        draw_snapshot_letters()
+    elseif grid_ui_state.grid_mode == 1 then
         -- No text on levels screen - pure visual meters
         -- Levels screen - Visual meters
         local num_bands = math.min(16, #freqs)
@@ -957,7 +1064,20 @@ function key(n, z)
     elseif z == 1 then -- Key press (not release)
         if n == 2 then
             -- Key 2: Context-dependent action
-            if grid_ui_state.grid_mode == 5 then
+            if grid_ui_state.grid_mode == 0 then
+                -- Inputs mode: Reset all inputs to defaults
+                params:set("audio_in_level", 1.0)
+                params:set("noise_level", 0.0)
+                params:set("dust_level", 0.0)
+                params:set("noise_lfo_rate", 0.0)
+                params:set("noise_lfo_depth", 1.0)
+                params:set("dust_density", 10)
+                -- Save to current snapshot
+                store_snapshot(current_snapshot)
+                if params:get("info_banner") == 2 then
+                    info_banner_mod.show("Inputs Reset")
+                end
+            elseif grid_ui_state.grid_mode == 5 then
                 -- Matrix mode: Go to selected position
                 local old_x = grid_ui_state.current_matrix_pos.x
                 local old_y = grid_ui_state.current_matrix_pos.y
@@ -996,7 +1116,20 @@ function key(n, z)
             end
         elseif n == 3 then
             -- Key 3: Context-dependent action
-            if grid_ui_state.grid_mode == 5 then
+            if grid_ui_state.grid_mode == 0 then
+                -- Inputs mode: Randomize all inputs
+                params:set("audio_in_level", math.random())
+                params:set("noise_level", math.random())
+                params:set("dust_level", math.random())
+                params:set("noise_lfo_rate", math.random() * 20)
+                params:set("noise_lfo_depth", math.random())
+                params:set("dust_density", math.random(1, 1000))
+                -- Save to current snapshot
+                store_snapshot(current_snapshot)
+                if params:get("info_banner") == 2 then
+                    info_banner_mod.show("Inputs Random")
+                end
+            elseif grid_ui_state.grid_mode == 5 then
                 -- Matrix mode: Set selector to random position
                 selected_matrix_pos.x = math.random(1, 14)
                 selected_matrix_pos.y = math.random(1, 14)
@@ -1043,37 +1176,50 @@ function enc(n, d)
     if n == 1 then
         -- Encoder 1: Switch modes
         if grid_ui_state.shift_held then
-            -- Shift + enc 1: Switch between all 5 modes (levels, pans, thresholds, decimate, matrix)
+            -- Shift + enc 1: Switch between all 6 modes (inputs, levels, pans, thresholds, decimate, matrix)
             grid_ui_state.grid_mode = grid_ui_state.grid_mode + d
-            if grid_ui_state.grid_mode < 1 then
+            if grid_ui_state.grid_mode < 0 then
                 grid_ui_state.grid_mode = 5
             elseif grid_ui_state.grid_mode > 5 then
-                grid_ui_state.grid_mode = 1
+                grid_ui_state.grid_mode = 0
             end
         else
-            -- Normal enc 1: Switch between first 4 modes (levels, pans, thresholds, decimate)
+            -- Normal enc 1: Switch between first 5 modes (inputs, levels, pans, thresholds, decimate)
             local new_mode = grid_ui_state.grid_mode + d
-            if new_mode < 1 then
+            if new_mode < 0 then
                 new_mode = 4
             elseif new_mode > 4 then
-                new_mode = 1
+                new_mode = 0
             end
-            -- Only update if staying in range 1-4
+            -- Only update if staying in range 0-4
             if grid_ui_state.grid_mode <= 4 then
                 grid_ui_state.grid_mode = new_mode
             else
-                -- If currently in matrix mode, go to mode 1 or 4 depending on direction
-                grid_ui_state.grid_mode = d > 0 and 1 or 4
+                -- If currently in matrix mode, go to mode 0 or 4 depending on direction
+                grid_ui_state.grid_mode = d > 0 and 0 or 4
             end
         end
 
         -- Show mode change banner
         if params:get("info_banner") == 2 then
-            local mode_name = mode_names[grid_ui_state.grid_mode] or "unknown"
+            local mode_name = mode_names[grid_ui_state.grid_mode + 1] or "unknown"
             info_banner_mod.show(mode_name)
         end
     elseif n == 2 then
-        if grid_ui_state.grid_mode == 5 then
+        if grid_ui_state.grid_mode == 0 then
+            -- Inputs mode: Select input type (Live/Noise/Dust)
+            input_mode_state.selected_input = input_mode_state.selected_input + d
+            if input_mode_state.selected_input < 1 then
+                input_mode_state.selected_input = 3
+            elseif input_mode_state.selected_input > 3 then
+                input_mode_state.selected_input = 1
+            end
+            input_mode_state.selected_param = 1 -- Reset param selection
+            local input_names = { "Live", "Noise", "Dust" }
+            if params:get("info_banner") == 2 then
+                info_banner_mod.show(input_names[input_mode_state.selected_input])
+            end
+        elseif grid_ui_state.grid_mode == 5 then
             -- Matrix mode: Navigate X position
             selected_matrix_pos.x = selected_matrix_pos.x + d
             selected_matrix_pos.x = math.max(1, math.min(14, selected_matrix_pos.x))
@@ -1084,7 +1230,95 @@ function enc(n, d)
             selected_band = math.max(1, math.min(#freqs, selected_band))
         end
     elseif n == 3 then
-        if grid_ui_state.grid_mode == 5 then
+        if grid_ui_state.grid_mode == 0 then
+            -- Inputs mode: Adjust parameter for selected input
+            if input_mode_state.selected_input == 1 then
+                -- Live: Audio In Level
+                local current = params:get("audio_in_level")
+                local new_val = util.clamp(current + d * 0.01, 0, 1)
+                params:set("audio_in_level", new_val)
+                store_snapshot(current_snapshot)
+                if params:get("info_banner") == 2 then
+                    info_banner_mod.show(string.format("Audio In: %.2f", new_val))
+                end
+            elseif input_mode_state.selected_input == 2 then
+                -- Noise: Level, LFO Rate, LFO Depth (cycle with shift)
+                if grid_ui_state.shift_held then
+                    -- Shift: cycle parameter
+                    input_mode_state.selected_param = input_mode_state.selected_param + (d > 0 and 1 or -1)
+                    if input_mode_state.selected_param < 1 then
+                        input_mode_state.selected_param = 3
+                    elseif input_mode_state.selected_param > 3 then
+                        input_mode_state.selected_param = 1
+                    end
+                    local param_names = { "Level", "LFO Rate", "LFO Depth" }
+                    if params:get("info_banner") == 2 then
+                        info_banner_mod.show(param_names[input_mode_state.selected_param])
+                    end
+                else
+                    -- Normal: adjust selected parameter
+                    if input_mode_state.selected_param == 1 then
+                        local current = params:get("noise_level")
+                        local new_val = util.clamp(current + d * 0.01, 0, 1)
+                        params:set("noise_level", new_val)
+                        store_snapshot(current_snapshot)
+                        if params:get("info_banner") == 2 then
+                            info_banner_mod.show(string.format("Noise: %.2f", new_val))
+                        end
+                    elseif input_mode_state.selected_param == 2 then
+                        local current = params:get("noise_lfo_rate")
+                        local new_val = util.clamp(current + d * 0.5, 0, 20)
+                        params:set("noise_lfo_rate", new_val)
+                        store_snapshot(current_snapshot)
+                        if params:get("info_banner") == 2 then
+                            info_banner_mod.show(string.format("LFO Rate: %.1fHz", new_val))
+                        end
+                    elseif input_mode_state.selected_param == 3 then
+                        local current = params:get("noise_lfo_depth")
+                        local new_val = util.clamp(current + d * 0.01, 0, 1)
+                        params:set("noise_lfo_depth", new_val)
+                        store_snapshot(current_snapshot)
+                        if params:get("info_banner") == 2 then
+                            info_banner_mod.show(string.format("LFO Depth: %.0f%%", new_val * 100))
+                        end
+                    end
+                end
+            elseif input_mode_state.selected_input == 3 then
+                -- Dust: Level, Density (cycle with shift)
+                if grid_ui_state.shift_held then
+                    -- Shift: cycle parameter
+                    input_mode_state.selected_param = input_mode_state.selected_param + (d > 0 and 1 or -1)
+                    if input_mode_state.selected_param < 1 then
+                        input_mode_state.selected_param = 2
+                    elseif input_mode_state.selected_param > 2 then
+                        input_mode_state.selected_param = 1
+                    end
+                    local param_names = { "Level", "Density" }
+                    if params:get("info_banner") == 2 then
+                        info_banner_mod.show(param_names[input_mode_state.selected_param])
+                    end
+                else
+                    -- Normal: adjust selected parameter
+                    if input_mode_state.selected_param == 1 then
+                        local current = params:get("dust_level")
+                        local new_val = util.clamp(current + d * 0.01, 0, 1)
+                        params:set("dust_level", new_val)
+                        store_snapshot(current_snapshot)
+                        if params:get("info_banner") == 2 then
+                            info_banner_mod.show(string.format("Dust: %.2f", new_val))
+                        end
+                    elseif input_mode_state.selected_param == 2 then
+                        local current = params:get("dust_density")
+                        local new_val = util.clamp(current + d * 10, 1, 1000)
+                        params:set("dust_density", new_val)
+                        store_snapshot(current_snapshot)
+                        if params:get("info_banner") == 2 then
+                            info_banner_mod.show(string.format("Dust Dens: %dHz", new_val))
+                        end
+                    end
+                end
+            end
+        elseif grid_ui_state.grid_mode == 5 then
             -- Matrix mode: Navigate Y position or adjust glide
             if grid_ui_state.shift_held then
                 -- Shift + enc 3: Adjust glide time

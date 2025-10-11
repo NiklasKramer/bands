@@ -3,6 +3,64 @@ local util = require 'util'
 
 local Helper = {}
 
+-- Conversion functions for input parameters
+function Helper.x_to_audio_level(x)
+    -- keys 1-16 map to 0.0-1.0
+    return (x - 1) / 15
+end
+
+function Helper.x_to_noise_level(x)
+    -- keys 1-16 map to 0.0-1.0
+    return (x - 1) / 15
+end
+
+function Helper.x_to_noise_lfo_rate(x)
+    -- keys 1-16 map to 0-20 Hz, key 1 = 0 (off)
+    return (x - 1) * 20 / 15
+end
+
+function Helper.x_to_noise_lfo_depth(x)
+    -- keys 1-16 map to 0.0-1.0
+    return (x - 1) / 15
+end
+
+function Helper.x_to_dust_level(x)
+    -- keys 1-16 map to 0.0-1.0
+    return (x - 1) / 15
+end
+
+function Helper.x_to_dust_density(x)
+    -- keys 1-16 map to 1-1000 Hz exponential
+    local normalized = (x - 1) / 15 -- 0 to 1
+    return math.floor(1 + (999 * (math.exp(normalized * 3) - 1) / (math.exp(3) - 1)))
+end
+
+-- Inverse conversion functions for display
+function Helper.audio_level_to_x(level)
+    return util.clamp(util.round(level * 15 + 1), 1, 16)
+end
+
+function Helper.noise_level_to_x(level)
+    return util.clamp(util.round(level * 15 + 1), 1, 16)
+end
+
+function Helper.noise_lfo_rate_to_x(rate)
+    return util.clamp(util.round(rate * 15 / 20 + 1), 1, 16)
+end
+
+function Helper.noise_lfo_depth_to_x(depth)
+    return util.clamp(util.round(depth * 15 + 1), 1, 16)
+end
+
+function Helper.dust_level_to_x(level)
+    return util.clamp(util.round(level * 15 + 1), 1, 16)
+end
+
+function Helper.dust_density_to_x(density)
+    local normalized = math.log((density - 1) * (math.exp(3) - 1) / 999 + 1) / 3
+    return util.clamp(util.round(normalized * 15 + 1), 1, 16)
+end
+
 -- Conversion functions: row to parameter value
 function Helper.row_to_level_db(y)
     -- row 1 = +6dB, row 15 = -60dB
@@ -132,6 +190,89 @@ function Helper.handle_band_control(x, y, shift_held, grid_mode, freqs, redraw_c
             Helper.handle_threshold_mode(band_idx, y, shift_held, freqs)
         end
         redraw_callback()
+    end
+end
+
+-- Handle input mode (mode 0) with selector
+function Helper.handle_input_mode(x, y, shift_held, save_to_snapshot, current_snapshot, show_banner, input_mode_state)
+    local param_id, value, display_text
+
+    -- Row 1: Input selector (Live/Noise/Dust)
+    if y == 1 then
+        if x >= 1 and x <= 6 then
+            input_mode_state.selected_input = 1 -- Live
+            input_mode_state.selected_param = 1
+            if show_banner then
+                show_banner("Live")
+            end
+        elseif x >= 7 and x <= 11 then
+            input_mode_state.selected_input = 2 -- Noise
+            input_mode_state.selected_param = 1
+            if show_banner then
+                show_banner("Noise")
+            end
+        elseif x >= 12 and x <= 16 then
+            input_mode_state.selected_input = 3 -- Dust
+            input_mode_state.selected_param = 1
+            if show_banner then
+                show_banner("Dust")
+            end
+        end
+        return
+    end
+
+    -- Rows 2+: Parameters based on selected input
+    if input_mode_state.selected_input == 1 then
+        -- Live audio input
+        if y == 2 then
+            value = Helper.x_to_audio_level(x)
+            param_id = "audio_in_level"
+            display_text = string.format("Audio In: %.2f", value)
+        end
+    elseif input_mode_state.selected_input == 2 then
+        -- Noise
+        if y == 2 then
+            value = Helper.x_to_noise_level(x)
+            param_id = "noise_level"
+            display_text = string.format("Noise: %.2f", value)
+        elseif y == 3 then
+            value = Helper.x_to_noise_lfo_rate(x)
+            param_id = "noise_lfo_rate"
+            if value == 0 then
+                display_text = "LFO Rate: Off"
+            else
+                display_text = string.format("LFO Rate: %.1fHz", value)
+            end
+        elseif y == 4 then
+            value = Helper.x_to_noise_lfo_depth(x)
+            param_id = "noise_lfo_depth"
+            display_text = string.format("LFO Depth: %.0f%%", value * 100)
+        end
+    elseif input_mode_state.selected_input == 3 then
+        -- Dust
+        if y == 2 then
+            value = Helper.x_to_dust_level(x)
+            param_id = "dust_level"
+            display_text = string.format("Dust: %.2f", value)
+        elseif y == 3 then
+            value = Helper.x_to_dust_density(x)
+            param_id = "dust_density"
+            display_text = string.format("Dust Dens: %dHz", value)
+        end
+    end
+
+    -- Apply the parameter change if we got a valid one
+    if param_id and value then
+        params:set(param_id, value)
+
+        -- Also update the corresponding snapshot parameter
+        local snapshot_param = string.format("snapshot_%s_%s", string.lower(current_snapshot), param_id)
+        params:set(snapshot_param, value)
+
+        -- Show info banner with the change
+        if show_banner and display_text then
+            show_banner(display_text)
+        end
     end
 end
 
