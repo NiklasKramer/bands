@@ -79,6 +79,13 @@ local current_snapshot = "A"
 local function init_current_state()
     -- Initialize from current snapshot (A by default)
     params:set("q", params:get("snapshot_a_q"))
+    
+    -- Initialize input settings from snapshot A
+    params:set("input_source", params:get("snapshot_a_input_source"))
+    params:set("noise_level", params:get("snapshot_a_noise_level"))
+    params:set("noise_lfo_rate", params:get("snapshot_a_noise_lfo_rate"))
+    params:set("noise_lfo_depth", params:get("snapshot_a_noise_lfo_depth"))
+    params:set("dust_density", params:get("snapshot_a_dust_density"))
 
     for i = 1, #freqs do
         local level = params:get(string.format("snapshot_a_%02d_level", i))
@@ -105,6 +112,13 @@ end
 local function store_snapshot(snapshot_name)
     -- Store to Norns params for persistence
     params:set("snapshot_" .. string.lower(snapshot_name) .. "_q", params:get("q"))
+    
+    -- Store input settings
+    params:set("snapshot_" .. string.lower(snapshot_name) .. "_input_source", params:get("input_source"))
+    params:set("snapshot_" .. string.lower(snapshot_name) .. "_noise_level", params:get("noise_level"))
+    params:set("snapshot_" .. string.lower(snapshot_name) .. "_noise_lfo_rate", params:get("noise_lfo_rate"))
+    params:set("snapshot_" .. string.lower(snapshot_name) .. "_noise_lfo_depth", params:get("noise_lfo_depth"))
+    params:set("snapshot_" .. string.lower(snapshot_name) .. "_dust_density", params:get("dust_density"))
 
     for i = 1, #freqs do
         local level_id = string.format("snapshot_%s_%02d_level", string.lower(snapshot_name), i)
