@@ -15,25 +15,30 @@ local get_current_snapshot
 function GridDraw.draw_inputs_mode(g, input_mode_state)
     local helper = include 'lib/helper'
 
-    -- Row 1: Input selector (Live/Osc/Dust/Noise)
-    -- Keys 1-4: Live
-    for x = 1, 4 do
+    -- Row 1: Input selector (Input/Osc/Dust/Noise/File)
+    -- Keys 1-3: Input
+    for x = 1, 3 do
         local brightness = (input_mode_state.selected_input == 1) and 15 or 4
         g:led(x, 1, brightness)
     end
-    -- Keys 5-8: Osc
-    for x = 5, 8 do
+    -- Keys 4-6: Osc
+    for x = 4, 6 do
         local brightness = (input_mode_state.selected_input == 2) and 15 or 4
         g:led(x, 1, brightness)
     end
-    -- Keys 9-12: Dust
-    for x = 9, 12 do
+    -- Keys 7-9: Dust
+    for x = 7, 9 do
         local brightness = (input_mode_state.selected_input == 3) and 15 or 4
         g:led(x, 1, brightness)
     end
-    -- Keys 13-16: Noise
-    for x = 13, 16 do
+    -- Keys 10-12: Noise
+    for x = 10, 12 do
         local brightness = (input_mode_state.selected_input == 4) and 15 or 4
+        g:led(x, 1, brightness)
+    end
+    -- Keys 13-16: File
+    for x = 13, 16 do
+        local brightness = (input_mode_state.selected_input == 5) and 15 or 4
         g:led(x, 1, brightness)
     end
 
@@ -118,6 +123,28 @@ function GridDraw.draw_inputs_mode(g, input_mode_state)
         for x = 1, 16 do
             local brightness = (x == lfo_depth_x) and 15 or (x < lfo_depth_x and 4 or 0)
             g:led(x, 4, brightness)
+        end
+    elseif input_mode_state.selected_input == 5 then
+        -- File: Level, Speed (rows 2-3)
+        local file_level = params:get("file_level")
+        local file_level_x = helper.file_level_to_x(file_level)
+        for x = 1, 16 do
+            local brightness = (x == file_level_x) and 15 or (x < file_level_x and 4 or 0)
+            g:led(x, 2, brightness)
+        end
+
+        local file_speed = params:get("file_speed")
+        local file_speed_x = helper.file_speed_to_x(file_speed)
+        for x = 1, 16 do
+            local brightness
+            if x == file_speed_x then
+                brightness = 15
+            elseif (file_speed >= 0 and x < file_speed_x) or (file_speed < 0 and x > file_speed_x) then
+                brightness = 4
+            else
+                brightness = 0
+            end
+            g:led(x, 3, brightness)
         end
     end
 end

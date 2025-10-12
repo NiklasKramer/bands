@@ -42,6 +42,20 @@ Engine_Bands : CroneEngine {
             Out.ar(outBus, sig * level * Lag.kr(level > 0, 0.5));
         }).add;
         
+        // File playback source - stereo file player with speed control
+        SynthDef(\fileSource, { |outBus = 0, level = 0.0, bufnum = 0, speed = 1.0, gate = 1|
+            var sig, env;
+            
+            // Envelope for smooth start/stop
+            env = EnvGen.kr(Env.asr(0.01, 1, 0.1), gate, doneAction: 0);
+            
+            // PlayBuf with speed control (allows negative speeds for reverse playback)
+            sig = PlayBuf.ar(2, bufnum, BufRateScale.kr(bufnum) * speed, loop: 1);
+            
+            // Smooth level changes to avoid clicks
+            Out.ar(outBus, sig * level * env * Lag.kr(level > 0, 0.5));
+        }).add;
+        
         // Complex oscillator source - inspired by Buchla 259e "Twisted Waveform Generator"
         SynthDef(\oscSource, { |outBus = 0, level = 0.0, freq = 220, timbre = 0.5, warp = 0.5, modRate = 5.0, modDepth = 0.0|
             var sig, phase, sine, triangle, square, modulator, modulatedFreq;
@@ -185,6 +199,9 @@ Engine_Bands : CroneEngine {
         // Create an internal bus for summing all bands
         ~sumBus = Bus.audio(context.server, 2);
         
+        // Create a buffer for file playback (initially empty)
+        ~fileBuffer = Buffer.alloc(context.server, context.server.sampleRate * 2, 2); // 2 seconds, stereo
+        
         ~bandGroup = Group.head(context.xg);
         
         // Create three separate input source synths at the head of the group
@@ -231,6 +248,19 @@ Engine_Bands : CroneEngine {
                 \modDepth, 0.0
             ]
         );
+        
+        ~fileSource = Synth.after(
+            ~oscSource,
+            \fileSource,
+            [
+                \outBus, ~inputBus,
+                \level, 0.0,
+                \bufnum, ~fileBuffer,
+                \speed, 1.0,
+                \gate, 0
+            ]
+        );
+        
         ~bands = freqs.collect { |f, i|
             var ftype;
             // First band = lowpass (0), last band = highpass (2), middle bands = bandpass (1)
@@ -469,6 +499,53 @@ Engine_Bands : CroneEngine {
                 ~oscSource.set(\modDepth, depth);
             };
         });
+        
+        // load audio file for file playback source
+        this.addCommand("file_load", "s", { arg msg;
+            var path;
+            path = msg[1].asString;
+            if(~fileBuffer.notNil) {
+                ~fileBuffer.free;
+                ~fileBuffer = Buffer.read(context.server, path, action: { |buf|
+                    if(buf.numFrames == 0) {
+                        ("Error loading file: " ++ path).postln;
+                    } {
+                        ("Loaded file: " ++ path ++ " (" ++ buf.duration.asString ++ "s)").postln;
+                        // Update the synth's buffer reference
+                        if(~fileSource.notNil) {
+                            ~fileSource.set(\bufnum, buf);
+                        };
+                    };
+                });
+            };
+        });
+        
+        // set file playback level (0.0 to 1.0)
+        this.addCommand("file_level", "f", { arg msg;
+            var level;
+            level = msg[1].clip(0.0, 1.0);
+            if(~fileSource.notNil) {
+                ~fileSource.set(\level, level);
+            };
+        });
+        
+        // set file playback speed (-4.0 to 4.0)
+        this.addCommand("file_speed", "f", { arg msg;
+            var speed;
+            speed = msg[1].clip(-4.0, 4.0);
+            if(~fileSource.notNil) {
+                ~fileSource.set(\speed, speed);
+            };
+        });
+        
+        // start/stop file playback (1 = play, 0 = stop)
+        this.addCommand("file_gate", "i", { arg msg;
+            var gate;
+            gate = msg[1].clip(0, 1);
+            if(~fileSource.notNil) {
+                ~fileSource.set(\gate, gate);
+            };
+        });
     }
 
     // ---- Teardown ------------------------------------------------------------
@@ -478,10 +555,12 @@ Engine_Bands : CroneEngine {
         if(~noiseSource.notNil) { ~noiseSource.free; ~noiseSource = nil; };
         if(~dustSource.notNil) { ~dustSource.free; ~dustSource = nil; };
         if(~oscSource.notNil) { ~oscSource.free; ~oscSource = nil; };
+        if(~fileSource.notNil) { ~fileSource.free; ~fileSource = nil; };
         if(~bands.notNil) { ~bands.do({ |x| x.free }); ~bands = nil; };
         if(~bandGroup.notNil) { ~bandGroup.free; ~bandGroup = nil; };
         if(~sumBus.notNil) { ~sumBus.free; ~sumBus = nil; };
         if(~inputBus.notNil) { ~inputBus.free; ~inputBus = nil; };
+        if(~fileBuffer.notNil) { ~fileBuffer.free; ~fileBuffer = nil; };
         if(~meterBuses.notNil) { ~meterBuses.do({ |b| if(b.notNil) { b.free } }); ~meterBuses = nil; };
         super.free;
     }

@@ -62,6 +62,16 @@ function Helper.x_to_dust_density(x)
     return math.floor(1 + (999 * (math.exp(normalized * 3) - 1) / (math.exp(3) - 1)))
 end
 
+function Helper.x_to_file_level(x)
+    -- keys 1-16 map to 0.0-1.0
+    return (x - 1) / 15
+end
+
+function Helper.x_to_file_speed(x)
+    -- keys 1-16 map to -4.0 to 4.0 (center at key 8-9)
+    return ((x - 1) / 15) * 8 - 4
+end
+
 -- Inverse conversion functions for display
 function Helper.audio_level_to_x(level)
     return util.clamp(util.round(level * 15 + 1), 1, 16)
@@ -159,6 +169,15 @@ function Helper.decimate_to_row(rate)
     return util.clamp(decimate_y, 1, 15)
 end
 
+function Helper.file_level_to_x(level)
+    return util.clamp(util.round(level * 15 + 1), 1, 16)
+end
+
+function Helper.file_speed_to_x(speed)
+    -- inverse of: speed = ((x - 1) / 15) * 8 - 4
+    return util.clamp(util.round((speed + 4) / 8 * 15 + 1), 1, 16)
+end
+
 -- Set parameter for a single band or all bands
 function Helper.set_band_param(band_idx, param_type, value, shift_held, freqs, format_str, save_to_snapshot,
                                current_snapshot)
@@ -246,31 +265,37 @@ end
 function Helper.handle_input_mode(x, y, shift_held, save_to_snapshot, current_snapshot, show_banner, input_mode_state)
     local param_id, value, display_text
 
-    -- Row 1: Input selector (Live/Osc/Dust/Noise)
+    -- Row 1: Input selector (Input/Osc/Dust/Noise/File)
     if y == 1 then
-        if x >= 1 and x <= 4 then
-            input_mode_state.selected_input = 1 -- Live
+        if x >= 1 and x <= 3 then
+            input_mode_state.selected_input = 1 -- Input
             input_mode_state.selected_param = 1
             if show_banner then
-                show_banner("INPUT")
+                show_banner("input")
             end
-        elseif x >= 5 and x <= 8 then
+        elseif x >= 4 and x <= 6 then
             input_mode_state.selected_input = 2 -- Osc
             input_mode_state.selected_param = 1
             if show_banner then
-                show_banner("OSC")
+                show_banner("osc")
             end
-        elseif x >= 9 and x <= 12 then
+        elseif x >= 7 and x <= 9 then
             input_mode_state.selected_input = 3 -- Dust
             input_mode_state.selected_param = 1
             if show_banner then
-                show_banner("DUST")
+                show_banner("dust")
             end
-        elseif x >= 13 and x <= 16 then
+        elseif x >= 10 and x <= 12 then
             input_mode_state.selected_input = 4 -- Noise
             input_mode_state.selected_param = 1
             if show_banner then
-                show_banner("NOISE")
+                show_banner("noise")
+            end
+        elseif x >= 13 and x <= 16 then
+            input_mode_state.selected_input = 5 -- File
+            input_mode_state.selected_param = 1
+            if show_banner then
+                show_banner("file")
             end
         end
         return
@@ -323,19 +348,30 @@ function Helper.handle_input_mode(x, y, shift_held, save_to_snapshot, current_sn
         if y == 2 then
             value = Helper.x_to_noise_level(x)
             param_id = "noise_level"
-            display_text = string.format("Noise: %.2f", value)
+            display_text = string.format("NOISE: %.2f", value)
         elseif y == 3 then
             value = Helper.x_to_noise_lfo_rate(x)
             param_id = "noise_lfo_rate"
             if value == 0 then
-                display_text = "LFO Rate: Off"
+                display_text = "LFO RATE: OFF"
             else
-                display_text = string.format("LFO Rate: %.1fHz", value)
+                display_text = string.format("LFO RATE: %.1fHz", value)
             end
         elseif y == 4 then
             value = Helper.x_to_noise_lfo_depth(x)
             param_id = "noise_lfo_depth"
-            display_text = string.format("LFO Depth: %.0f%%", value * 100)
+            display_text = string.format("LFO DEPTH: %.0f%%", value * 100)
+        end
+    elseif input_mode_state.selected_input == 5 then
+        -- File playback
+        if y == 2 then
+            value = Helper.x_to_file_level(x)
+            param_id = "file_level"
+            display_text = string.format("FILE LEVEL: %.2f", value)
+        elseif y == 3 then
+            value = Helper.x_to_file_speed(x)
+            param_id = "file_speed"
+            display_text = string.format("FILE SPEED: %.2f", value)
         end
     end
 

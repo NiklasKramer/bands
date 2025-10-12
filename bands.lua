@@ -100,6 +100,8 @@ local function init_current_state()
     params:set("osc_warp", params:get("snapshot_a_osc_warp"))
     params:set("osc_mod_rate", params:get("snapshot_a_osc_mod_rate"))
     params:set("osc_mod_depth", params:get("snapshot_a_osc_mod_depth"))
+    params:set("file_level", params:get("snapshot_a_file_level"))
+    params:set("file_speed", params:get("snapshot_a_file_speed"))
 
     for i = 1, #freqs do
         local level = params:get(string.format("snapshot_a_%02d_level", i))
@@ -140,6 +142,8 @@ local function store_snapshot(snapshot_name)
     params:set("snapshot_" .. string.lower(snapshot_name) .. "_osc_warp", params:get("osc_warp"))
     params:set("snapshot_" .. string.lower(snapshot_name) .. "_osc_mod_rate", params:get("osc_mod_rate"))
     params:set("snapshot_" .. string.lower(snapshot_name) .. "_osc_mod_depth", params:get("osc_mod_depth"))
+    params:set("snapshot_" .. string.lower(snapshot_name) .. "_file_level", params:get("file_level"))
+    params:set("snapshot_" .. string.lower(snapshot_name) .. "_file_speed", params:get("file_speed"))
 
     for i = 1, #freqs do
         local level_id = string.format("snapshot_%s_%02d_level", string.lower(snapshot_name), i)
@@ -178,6 +182,8 @@ local function recall_snapshot(snapshot_name)
     params:set("osc_warp", params:get("snapshot_" .. string.lower(snapshot_name) .. "_osc_warp"))
     params:set("osc_mod_rate", params:get("snapshot_" .. string.lower(snapshot_name) .. "_osc_mod_rate"))
     params:set("osc_mod_depth", params:get("snapshot_" .. string.lower(snapshot_name) .. "_osc_mod_depth"))
+    params:set("file_level", params:get("snapshot_" .. string.lower(snapshot_name) .. "_file_level"))
+    params:set("file_speed", params:get("snapshot_" .. string.lower(snapshot_name) .. "_file_speed"))
 
     for i = 1, #freqs do
         local level_id = string.format("snapshot_%s_%02d_level", string.lower(snapshot_name), i)
@@ -286,6 +292,16 @@ function apply_blend(x, y, old_x, old_y)
         params:get("snapshot_c_osc_mod_depth") * c_w +
         params:get("snapshot_d_osc_mod_depth") * d_w
 
+    target_values.file_level = params:get("snapshot_a_file_level") * a_w +
+        params:get("snapshot_b_file_level") * b_w +
+        params:get("snapshot_c_file_level") * c_w +
+        params:get("snapshot_d_file_level") * d_w
+
+    target_values.file_speed = params:get("snapshot_a_file_speed") * a_w +
+        params:get("snapshot_b_file_speed") * b_w +
+        params:get("snapshot_c_file_speed") * c_w +
+        params:get("snapshot_d_file_speed") * d_w
+
     -- Blend per-band parameters from params
     for i = 1, #freqs do
         local level_id = string.format("band_%02d_level", i)
@@ -362,6 +378,10 @@ function apply_blend(x, y, old_x, old_y)
                 (glide_state.target_values.osc_mod_rate - glide_state.current_values.osc_mod_rate) * progress
             current_values.osc_mod_depth = glide_state.current_values.osc_mod_depth +
                 (glide_state.target_values.osc_mod_depth - glide_state.current_values.osc_mod_depth) * progress
+            current_values.file_level = glide_state.current_values.file_level +
+                (glide_state.target_values.file_level - glide_state.current_values.file_level) * progress
+            current_values.file_speed = glide_state.current_values.file_speed +
+                (glide_state.target_values.file_speed - glide_state.current_values.file_speed) * progress
 
             for i = 1, #freqs do
                 local level_id = string.format("band_%02d_level", i)
@@ -417,6 +437,8 @@ function apply_blend(x, y, old_x, old_y)
             glide_state.current_values.osc_warp = params:get("osc_warp")
             glide_state.current_values.osc_mod_rate = params:get("osc_mod_rate")
             glide_state.current_values.osc_mod_depth = params:get("osc_mod_depth")
+            glide_state.current_values.file_level = params:get("file_level")
+            glide_state.current_values.file_speed = params:get("file_speed")
 
             for i = 1, #freqs do
                 local level_id = string.format("band_%02d_level", i)
@@ -456,6 +478,8 @@ function apply_blend(x, y, old_x, old_y)
         params:set("osc_warp", target_values.osc_warp)
         params:set("osc_mod_rate", target_values.osc_mod_rate)
         params:set("osc_mod_depth", target_values.osc_mod_depth)
+        params:set("file_level", target_values.file_level)
+        params:set("file_speed", target_values.file_speed)
 
         for i = 1, #freqs do
             local level_id = string.format("band_%02d_level", i)
@@ -719,7 +743,7 @@ function redraw()
     -- Mode-specific screens
     if grid_ui_state.grid_mode == 0 then
         -- Inputs mode - Centered layout
-        local input_names = { "INPUT", "OSC", "DUST", "NOISE" }
+        local input_names = { "input", "osc", "dust", "noise", "file" }
         local content_x = 64 -- Center x for content
 
         -- Draw input type selector at top with even spacing
@@ -727,19 +751,20 @@ function redraw()
         screen.font_size(8)
 
         -- Approximate text widths for 8pt font (in pixels)
-        local text_widths = { 25, 15, 20, 25 }
-        local gap = 8 -- Even gap between text items
+        local text_widths = { 25, 15, 20, 25, 20 }
+        local gap = 6 -- Even gap between text items
 
         -- Calculate total width and center position
-        local total_width = text_widths[1] + gap + text_widths[2] + gap + text_widths[3] + gap + text_widths[4]
+        local total_width = text_widths[1] + gap + text_widths[2] + gap + text_widths[3] + gap + text_widths[4] + gap +
+            text_widths[5]
         local start_x = (128 - total_width) / 2
 
         -- Draw each text with calculated positions
         local current_x = start_x
-        for i = 1, 4 do
+        for i = 1, 5 do
             local brightness = (input_mode_state.selected_input == i) and 15 or 4
             screen.level(brightness)
-            screen.move(current_x, 12)
+            screen.move(current_x, 10)
             screen.text(input_names[i])
             current_x = current_x + text_widths[i] + gap
         end
@@ -873,6 +898,44 @@ function redraw()
             local dots_width = 3 * dot_spacing - dot_spacing
             local dot_start_x = (128 - dots_width) / 2
             for i = 1, 3 do
+                local brightness = (i == input_mode_state.selected_param) and 15 or 4
+                screen.level(brightness)
+                screen.circle(dot_start_x + (i - 1) * dot_spacing, 54, 1.5)
+                screen.fill()
+            end
+        elseif input_mode_state.selected_input == 5 then
+            -- File playback
+            local file_level = params:get("file_level")
+            local file_speed = params:get("file_speed")
+            local file_gate = params:get("file_gate")
+
+            local param_names = { "LEVEL", "SPEED", "PLAY", "SELECT" }
+            local param_values = {
+                string.format("%.2f", file_level),
+                string.format("%.2f", file_speed),
+                file_gate == 1 and "ON" or "OFF",
+                "..."
+            }
+
+            -- Display current parameter name
+            screen.font_face(1)
+            screen.font_size(8)
+            screen.level(8)
+            screen.move(content_x, 28)
+            screen.text_center(param_names[input_mode_state.selected_param])
+
+            -- Display current value
+            screen.font_face(1)
+            screen.font_size(16)
+            screen.level(15)
+            screen.move(content_x, 45)
+            screen.text_center(param_values[input_mode_state.selected_param])
+
+            -- Parameter indicator (4 dots, current one bright, centered)
+            local dot_spacing = 6
+            local dots_width = 4 * dot_spacing - dot_spacing
+            local dot_start_x = (128 - dots_width) / 2
+            for i = 1, 4 do
                 local brightness = (i == input_mode_state.selected_param) and 15 or 4
                 screen.level(brightness)
                 screen.circle(dot_start_x + (i - 1) * dot_spacing, 54, 1.5)
@@ -1196,7 +1259,7 @@ function key(n, z)
             -- Key 2: Context-dependent action
             if grid_ui_state.grid_mode == 0 then
                 -- Inputs mode: Previous input type
-                input_mode_state.selected_input = util.clamp(input_mode_state.selected_input - 1, 1, 4)
+                input_mode_state.selected_input = util.clamp(input_mode_state.selected_input - 1, 1, 5)
                 input_mode_state.selected_param = 1 -- Reset param selection
             elseif grid_ui_state.grid_mode == 5 then
                 -- Matrix mode: Go to selected position
@@ -1239,7 +1302,7 @@ function key(n, z)
             -- Key 3: Context-dependent action
             if grid_ui_state.grid_mode == 0 then
                 -- Inputs mode: Next input type
-                input_mode_state.selected_input = util.clamp(input_mode_state.selected_input + 1, 1, 4)
+                input_mode_state.selected_input = util.clamp(input_mode_state.selected_input + 1, 1, 5)
                 input_mode_state.selected_param = 1 -- Reset param selection
             elseif grid_ui_state.grid_mode == 5 then
                 -- Matrix mode: Set selector to random position
@@ -1335,6 +1398,9 @@ function enc(n, d)
             elseif input_mode_state.selected_input == 4 then
                 max_params = 3
                 param_names = { "LEVEL", "LFO RATE", "LFO DEPTH" }
+            elseif input_mode_state.selected_input == 5 then
+                max_params = 4
+                param_names = { "LEVEL", "SPEED", "PLAY", "SELECT" }
             end
 
             input_mode_state.selected_param = util.clamp(input_mode_state.selected_param + d, 1, max_params)
@@ -1415,6 +1481,35 @@ function enc(n, d)
                     local new_val = util.clamp(current + d * 0.01, 0, 1)
                     params:set("noise_lfo_depth", new_val)
                     store_snapshot(current_snapshot)
+                end
+            elseif input_mode_state.selected_input == 5 then
+                -- File: Adjust selected parameter via Enc 3
+                if input_mode_state.selected_param == 1 then
+                    -- Level
+                    local current = params:get("file_level")
+                    local new_val = util.clamp(current + d * 0.01, 0, 1)
+                    params:set("file_level", new_val)
+                    store_snapshot(current_snapshot)
+                elseif input_mode_state.selected_param == 2 then
+                    -- Speed
+                    local current = params:get("file_speed")
+                    local new_val = util.clamp(current + d * 0.1, -4, 4)
+                    params:set("file_speed", new_val)
+                    store_snapshot(current_snapshot)
+                elseif input_mode_state.selected_param == 3 then
+                    -- Play/Stop (toggle on any encoder turn)
+                    if d ~= 0 then
+                        local current = params:get("file_gate")
+                        params:set("file_gate", 1 - current)
+                        if params:get("info_banner") == 2 then
+                            info_banner_mod.show(current == 0 and "FILE PLAY" or "FILE STOP")
+                        end
+                    end
+                elseif input_mode_state.selected_param == 4 then
+                    -- Select file (open file browser on any encoder turn)
+                    if d ~= 0 then
+                        _menu.fileselect(params:lookup_param("file_path"))
+                    end
                 end
             end
         elseif grid_ui_state.grid_mode == 5 then
@@ -1702,6 +1797,51 @@ function add_params()
         end
     }
 
+    params:add {
+        type = "file",
+        id = "file_path",
+        name = "File Path",
+        path = _path.audio,
+        action = function(file)
+            if engine and engine.file_load and file ~= "" then
+                engine.file_load(file)
+            end
+        end
+    }
+
+    params:add {
+        type = "control",
+        id = "file_level",
+        name = "File Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end,
+        action = function(level)
+            if engine and engine.file_level then engine.file_level(level) end
+        end
+    }
+
+    params:add {
+        type = "control",
+        id = "file_speed",
+        name = "File Speed",
+        controlspec = controlspec.new(-4, 4, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end,
+        action = function(speed)
+            if engine and engine.file_speed then engine.file_speed(speed) end
+        end
+    }
+
+    params:add {
+        type = "binary",
+        id = "file_gate",
+        name = "File Play/Stop",
+        behavior = "toggle",
+        default = 0,
+        action = function(gate)
+            if engine and engine.file_gate then engine.file_gate(gate) end
+        end
+    }
+
     -- Individual band parameters for current state (hidden from UI)
     params:add_group("bands", num * 4)
     for i = 1, num do
@@ -1749,7 +1889,7 @@ function add_params()
 
     -- Add snapshot parameters for persistence
     -- Snapshot A
-    params:add_group("snapshot A", 77)
+    params:add_group("snapshot A", 79)
     params:add {
         type = "control",
         id = "snapshot_a_q",
@@ -1850,6 +1990,20 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
+    params:add {
+        type = "control",
+        id = "snapshot_a_file_level",
+        name = "File Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_a_file_speed",
+        name = "File Speed",
+        controlspec = controlspec.new(-4, 4, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
 
     for i = 1, num do
         local hz = freqs[i]
@@ -1884,7 +2038,7 @@ function add_params()
     end
 
     -- Snapshot B
-    params:add_group("snapshot B", 77)
+    params:add_group("snapshot B", 79)
     params:add {
         type = "control",
         id = "snapshot_b_q",
@@ -1985,6 +2139,20 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
+    params:add {
+        type = "control",
+        id = "snapshot_b_file_level",
+        name = "File Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_b_file_speed",
+        name = "File Speed",
+        controlspec = controlspec.new(-4, 4, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
 
     for i = 1, num do
         local hz = freqs[i]
@@ -2019,7 +2187,7 @@ function add_params()
     end
 
     -- Snapshot C
-    params:add_group("snapshot C", 77)
+    params:add_group("snapshot C", 79)
     params:add {
         type = "control",
         id = "snapshot_c_q",
@@ -2120,6 +2288,20 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
+    params:add {
+        type = "control",
+        id = "snapshot_c_file_level",
+        name = "File Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_c_file_speed",
+        name = "File Speed",
+        controlspec = controlspec.new(-4, 4, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
 
     for i = 1, num do
         local hz = freqs[i]
@@ -2154,7 +2336,7 @@ function add_params()
     end
 
     -- Snapshot D
-    params:add_group("snapshot D", 77)
+    params:add_group("snapshot D", 79)
     params:add {
         type = "control",
         id = "snapshot_d_q",
@@ -2253,6 +2435,20 @@ function add_params()
         id = "snapshot_d_osc_mod_depth",
         name = "Osc Mod Depth",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_d_file_level",
+        name = "File Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_d_file_speed",
+        name = "File Speed",
+        controlspec = controlspec.new(-4, 4, 'lin', 0.01, 1.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
 
