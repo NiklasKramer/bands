@@ -153,7 +153,7 @@ Engine_Bands : CroneEngine {
         
         // 3-band EQ with high/low cuts
         SynthDef(\eqFx, { |inBus = 0, outBus = 0, lowCut = 20, highCut = 20000, lowGain = 0, midGain = 0, highGain = 0|
-            var sig, low, mid, high;
+            var sig;
             sig = In.ar(inBus, 2);
             
             lowCut = Lag.kr(lowCut.clip(20, 2000), 0.1);
@@ -162,13 +162,22 @@ Engine_Bands : CroneEngine {
             midGain = Lag.kr(midGain.clip(-24, 12), 0.1);
             highGain = Lag.kr(highGain.clip(-24, 12), 0.1);
             
-            // Split into three bands with crossover filters
-            low = LPF.ar(sig, lowCut) * lowGain.dbamp;
-            high = HPF.ar(sig, highCut) * highGain.dbamp;
-            mid = HPF.ar(LPF.ar(sig, highCut), lowCut) * midGain.dbamp;
+            // Apply filters in series for better interaction
+            // High-pass filter (cuts lows below lowCut)
+            sig = BHiPass.ar(sig, lowCut, 0.5);
             
-            // Sum bands
-            sig = low + mid + high;
+            // Low-pass filter (cuts highs above highCut)
+            sig = BLowPass.ar(sig, highCut, 0.5);
+            
+            // Apply shelving EQ
+            // Low shelf at lowCut frequency
+            sig = BLowShelf.ar(sig, lowCut, 1.0, lowGain);
+            
+            // High shelf at highCut frequency
+            sig = BHiShelf.ar(sig, highCut, 1.0, highGain);
+            
+            // Mid band using parametric EQ at geometric mean of lowCut and highCut
+            sig = BPeakEQ.ar(sig, (lowCut * highCut).sqrt, 1.0, midGain);
             
             Out.ar(outBus, sig);
         }).add;

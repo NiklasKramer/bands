@@ -386,7 +386,8 @@ end
 
 -- Draw mode selector
 function GridDraw.draw_mode_selector(g)
-    for x = 1, 5 do
+    -- Modes 0-5: INPUTS, LEVELS, PANS, THRESHOLDS, DECIMATE, EFFECTS
+    for x = 1, 6 do
         local brightness = (x - 1 == grid_ui_state.grid_mode) and 15 or 4
         g:led(x, 16, brightness)
     end
@@ -394,7 +395,7 @@ end
 
 -- Draw matrix button
 function GridDraw.draw_matrix_button(g)
-    local matrix_brightness = (grid_ui_state.grid_mode == 5) and 15 or 4
+    local matrix_brightness = (grid_ui_state.grid_mode == 6) and 15 or 4
     g:led(14, 16, matrix_brightness)
 end
 

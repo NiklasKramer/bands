@@ -111,7 +111,7 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                     snapshot_functions.switch_to_snapshot("D")
                 end
             elseif x == 14 then
-                ui_state.grid_mode = 5 -- Matrix is now mode 5
+                ui_state.grid_mode = 6 -- Matrix is now mode 6 (after EFFECTS at mode 5)
                 if redraw_screen_callback then redraw_screen_callback() end
                 if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
                 -- Show info banner for matrix mode
@@ -120,7 +120,7 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                 end
             end
         elseif y >= 1 and y <= 15 then
-            if ui_state.grid_mode == 5 then
+            if ui_state.grid_mode == 6 then
                 GridUI.handle_matrix_control(ui_state, x, y, snapshot_functions)
             else
                 local helper = include 'lib/helper'

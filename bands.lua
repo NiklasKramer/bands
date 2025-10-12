@@ -12,6 +12,7 @@ local glide_mod = include 'lib/glide'
 local grid_draw_mod = include 'lib/grid_draw'
 local info_banner_mod = include 'lib/info_banner'
 local screen_indicators = include 'lib/screen_indicators'
+local snapshot_mod = include 'lib/snapshot'
 
 -- params
 local controlspec = require 'controlspec'
@@ -89,149 +90,25 @@ local snapshots = {
 local current_snapshot = "A"
 
 -- Initialize current state from the current snapshot
+-- Wrapper functions for snapshot module
 local function init_current_state()
-    -- Initialize from current snapshot (A by default)
-    params:set("q", params:get("snapshot_a_q"))
-
-    -- Initialize input settings from snapshot A
-    params:set("audio_in_level", params:get("snapshot_a_audio_in_level"))
-    params:set("noise_level", params:get("snapshot_a_noise_level"))
-    params:set("dust_level", params:get("snapshot_a_dust_level"))
-    params:set("noise_lfo_rate", params:get("snapshot_a_noise_lfo_rate"))
-    params:set("noise_lfo_depth", params:get("snapshot_a_noise_lfo_depth"))
-    params:set("dust_density", params:get("snapshot_a_dust_density"))
-    params:set("osc_level", params:get("snapshot_a_osc_level"))
-    params:set("osc_freq", params:get("snapshot_a_osc_freq"))
-    params:set("osc_timbre", params:get("snapshot_a_osc_timbre"))
-    params:set("osc_warp", params:get("snapshot_a_osc_warp"))
-    params:set("osc_mod_rate", params:get("snapshot_a_osc_mod_rate"))
-    params:set("osc_mod_depth", params:get("snapshot_a_osc_mod_depth"))
-    params:set("file_level", params:get("snapshot_a_file_level"))
-    params:set("file_speed", params:get("snapshot_a_file_speed"))
-    params:set("delay_time", params:get("snapshot_a_delay_time"))
-    params:set("delay_feedback", params:get("snapshot_a_delay_feedback"))
-    params:set("delay_mix", params:get("snapshot_a_delay_mix"))
-    params:set("delay_width", params:get("snapshot_a_delay_width"))
-    params:set("eq_low_cut", params:get("snapshot_a_eq_low_cut"))
-    params:set("eq_high_cut", params:get("snapshot_a_eq_high_cut"))
-    params:set("eq_low_gain", params:get("snapshot_a_eq_low_gain"))
-    params:set("eq_mid_gain", params:get("snapshot_a_eq_mid_gain"))
-    params:set("eq_high_gain", params:get("snapshot_a_eq_high_gain"))
-
-    for i = 1, #freqs do
-        local level = params:get(string.format("snapshot_a_%02d_level", i))
-        local pan = params:get(string.format("snapshot_a_%02d_pan", i))
-        local thresh = params:get(string.format("snapshot_a_%02d_thresh", i))
-        local decimate = params:get(string.format("snapshot_a_%02d_decimate", i))
-
-        -- Initialize hidden band parameters
-        params:set(string.format("band_%02d_level", i), level)
-        params:set(string.format("band_%02d_pan", i), pan)
-        params:set(string.format("band_%02d_thresh", i), thresh)
-        params:set(string.format("band_%02d_decimate", i), decimate)
-    end
+    snapshot_mod.init_current_state(params, freqs)
 end
 
--- Initialize snapshot parameters with different default values
 local function init_snapshots()
-    -- Snapshots are now stored in Norns params with default values
-    -- All snapshots: Center pan (0.0), thresholds (0.0 - all audio passes through)
-    -- No initialization needed - params handle persistence automatically
+    snapshot_mod.init_snapshots()
 end
 
--- Store current state to snapshot
 local function store_snapshot(snapshot_name)
-    -- Store to Norns params for persistence
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_q", params:get("q"))
-
-    -- Store input settings
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_audio_in_level", params:get("audio_in_level"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_noise_level", params:get("noise_level"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_dust_level", params:get("dust_level"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_noise_lfo_rate", params:get("noise_lfo_rate"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_noise_lfo_depth", params:get("noise_lfo_depth"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_dust_density", params:get("dust_density"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_osc_level", params:get("osc_level"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_osc_freq", params:get("osc_freq"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_osc_timbre", params:get("osc_timbre"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_osc_warp", params:get("osc_warp"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_osc_mod_rate", params:get("osc_mod_rate"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_osc_mod_depth", params:get("osc_mod_depth"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_file_level", params:get("file_level"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_file_speed", params:get("file_speed"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_delay_time", params:get("delay_time"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_delay_feedback", params:get("delay_feedback"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_delay_mix", params:get("delay_mix"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_delay_width", params:get("delay_width"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_eq_low_cut", params:get("eq_low_cut"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_eq_high_cut", params:get("eq_high_cut"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_eq_low_gain", params:get("eq_low_gain"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_eq_mid_gain", params:get("eq_mid_gain"))
-    params:set("snapshot_" .. string.lower(snapshot_name) .. "_eq_high_gain", params:get("eq_high_gain"))
-
-    for i = 1, #freqs do
-        local level_id = string.format("snapshot_%s_%02d_level", string.lower(snapshot_name), i)
-        local pan_id = string.format("snapshot_%s_%02d_pan", string.lower(snapshot_name), i)
-        local thresh_id = string.format("snapshot_%s_%02d_thresh", string.lower(snapshot_name), i)
-        local decimate_id = string.format("snapshot_%s_%02d_decimate", string.lower(snapshot_name), i)
-
-        params:set(level_id, params:get(string.format("band_%02d_level", i)))
-        params:set(pan_id, params:get(string.format("band_%02d_pan", i)))
-        params:set(thresh_id, params:get(string.format("band_%02d_thresh", i)))
-        params:set(decimate_id, params:get(string.format("band_%02d_decimate", i)))
-    end
+    snapshot_mod.store_snapshot(snapshot_name, params, freqs)
 end
 
--- Explicitly store current state to a snapshot (for manual snapshot updates)
 local function save_snapshot(snapshot_name)
     store_snapshot(snapshot_name)
 end
 
--- Recall snapshot
 local function recall_snapshot(snapshot_name)
-    -- Read from Norns params and update current state
-    local snapshot_q = params:get("snapshot_" .. string.lower(snapshot_name) .. "_q")
-    params:set("q", snapshot_q)
-
-    -- Recall input settings
-    params:set("audio_in_level", params:get("snapshot_" .. string.lower(snapshot_name) .. "_audio_in_level"))
-    params:set("noise_level", params:get("snapshot_" .. string.lower(snapshot_name) .. "_noise_level"))
-    params:set("dust_level", params:get("snapshot_" .. string.lower(snapshot_name) .. "_dust_level"))
-    params:set("noise_lfo_rate", params:get("snapshot_" .. string.lower(snapshot_name) .. "_noise_lfo_rate"))
-    params:set("noise_lfo_depth", params:get("snapshot_" .. string.lower(snapshot_name) .. "_noise_lfo_depth"))
-    params:set("dust_density", params:get("snapshot_" .. string.lower(snapshot_name) .. "_dust_density"))
-    params:set("osc_level", params:get("snapshot_" .. string.lower(snapshot_name) .. "_osc_level"))
-    params:set("osc_freq", params:get("snapshot_" .. string.lower(snapshot_name) .. "_osc_freq"))
-    params:set("osc_timbre", params:get("snapshot_" .. string.lower(snapshot_name) .. "_osc_timbre"))
-    params:set("osc_warp", params:get("snapshot_" .. string.lower(snapshot_name) .. "_osc_warp"))
-    params:set("osc_mod_rate", params:get("snapshot_" .. string.lower(snapshot_name) .. "_osc_mod_rate"))
-    params:set("osc_mod_depth", params:get("snapshot_" .. string.lower(snapshot_name) .. "_osc_mod_depth"))
-    params:set("file_level", params:get("snapshot_" .. string.lower(snapshot_name) .. "_file_level"))
-    params:set("file_speed", params:get("snapshot_" .. string.lower(snapshot_name) .. "_file_speed"))
-    params:set("delay_time", params:get("snapshot_" .. string.lower(snapshot_name) .. "_delay_time"))
-    params:set("delay_feedback", params:get("snapshot_" .. string.lower(snapshot_name) .. "_delay_feedback"))
-    params:set("delay_mix", params:get("snapshot_" .. string.lower(snapshot_name) .. "_delay_mix"))
-    params:set("delay_width", params:get("snapshot_" .. string.lower(snapshot_name) .. "_delay_width"))
-    params:set("eq_low_cut", params:get("snapshot_" .. string.lower(snapshot_name) .. "_eq_low_cut"))
-    params:set("eq_high_cut", params:get("snapshot_" .. string.lower(snapshot_name) .. "_eq_high_cut"))
-    params:set("eq_low_gain", params:get("snapshot_" .. string.lower(snapshot_name) .. "_eq_low_gain"))
-    params:set("eq_mid_gain", params:get("snapshot_" .. string.lower(snapshot_name) .. "_eq_mid_gain"))
-    params:set("eq_high_gain", params:get("snapshot_" .. string.lower(snapshot_name) .. "_eq_high_gain"))
-
-    for i = 1, #freqs do
-        local level_id = string.format("snapshot_%s_%02d_level", string.lower(snapshot_name), i)
-        local pan_id = string.format("snapshot_%s_%02d_pan", string.lower(snapshot_name), i)
-        local thresh_id = string.format("snapshot_%s_%02d_thresh", string.lower(snapshot_name), i)
-
-        local level_val = params:get(level_id)
-        local pan_val = params:get(pan_id)
-        local thresh_val = params:get(thresh_id)
-
-        -- Update hidden band parameters (this will update the engine automatically)
-        params:set(string.format("band_%02d_level", i), level_val)
-        params:set(string.format("band_%02d_pan", i), pan_val)
-        params:set(string.format("band_%02d_thresh", i), thresh_val)
-    end
+    snapshot_mod.recall_snapshot(snapshot_name, params, freqs)
 end
 
 -- Calculate blend weights for matrix position
@@ -614,36 +491,20 @@ end
 
 -- Switch to a snapshot
 local function switch_to_snapshot(snapshot_name)
-    -- Never store current snapshot to avoid overwriting with path values
-    -- Snapshots should only be updated when explicitly storing to them
-    current_snapshot = snapshot_name
-    recall_snapshot(snapshot_name)
-
-    -- Stop any ongoing glide when switching snapshots
-    glide_state.is_gliding = false
-
-    -- Move matrix position to corresponding corner
-    local old_x = grid_ui_state.current_matrix_pos.x
-    local old_y = grid_ui_state.current_matrix_pos.y
-
-    if snapshot_name == "A" then
-        grid_ui_state.current_matrix_pos = { x = 1, y = 1 }   -- Top-left (2,2 on grid)
-    elseif snapshot_name == "B" then
-        grid_ui_state.current_matrix_pos = { x = 14, y = 1 }  -- Top-right (15,2 on grid)
-    elseif snapshot_name == "C" then
-        grid_ui_state.current_matrix_pos = { x = 1, y = 14 }  -- Bottom-left (2,15 on grid)
-    elseif snapshot_name == "D" then
-        grid_ui_state.current_matrix_pos = { x = 14, y = 14 } -- Bottom-right (15,15 on grid)
-    end
-
-    -- Apply the blend for the new matrix position WITHOUT glide (force immediate)
-    local saved_glide_param = params:get("glide")
-    params:set("glide", 0)                 -- Temporarily disable glide
-    apply_blend(grid_ui_state.current_matrix_pos.x, grid_ui_state.current_matrix_pos.y, old_x, old_y)
-    params:set("glide", saved_glide_param) -- Restore glide setting
-
-    redraw()                               -- Update the screen to show the new snapshot
-    redraw_grid()                          -- Update the grid to show the new snapshot
+    -- Use a table reference to allow the module to modify current_snapshot
+    local current_snapshot_ref = { current_snapshot }
+    snapshot_mod.switch_to_snapshot(
+        snapshot_name,
+        params,
+        freqs,
+        grid_ui_state,
+        glide_state,
+        apply_blend,
+        redraw,
+        redraw_grid,
+        current_snapshot_ref
+    )
+    current_snapshot = current_snapshot_ref[1]
 end
 
 
@@ -856,31 +717,26 @@ function redraw()
 
     -- Mode-specific screens
     if grid_ui_state.grid_mode == 0 then
-        -- Inputs mode - Centered layout
-        local input_names = { "input", "osc", "dust", "noise", "file" }
-        local content_x = 64 -- Center x for content
+        -- Inputs mode - Centered layout with symbols
+        local input_symbols = { "I", "~", ".", "*", ">" } -- input, osc, dust, noise, file
+        local content_x = 64                              -- Center x for content
 
-        -- Draw input type selector at top with even spacing
+        -- Draw input type selector at top
         screen.font_face(1)
         screen.font_size(8)
 
-        -- Approximate text widths for 8pt font (in pixels)
-        local text_widths = { 25, 15, 20, 25, 20 }
-        local gap = 6 -- Even gap between text items
+        -- Evenly space symbols across the screen
+        local margin = 10
+        local available_width = 128 - (margin * 2)
+        local item_spacing = available_width / 5
 
-        -- Calculate total width and center position
-        local total_width = text_widths[1] + gap + text_widths[2] + gap + text_widths[3] + gap + text_widths[4] + gap +
-            text_widths[5]
-        local start_x = (128 - total_width) / 2
-
-        -- Draw each text with calculated positions
-        local current_x = start_x
+        -- Draw each symbol
         for i = 1, 5 do
+            local x_pos = margin + (i - 0.5) * item_spacing
             local brightness = (input_mode_state.selected_input == i) and 15 or 4
             screen.level(brightness)
-            screen.move(current_x, 10)
-            screen.text(input_names[i])
-            current_x = current_x + text_widths[i] + gap
+            screen.move(x_pos, 8)
+            screen.text_center(input_symbols[i])
         end
 
         -- Draw parameter values (centered)
@@ -1327,30 +1183,24 @@ function redraw()
         -- Draw snapshot letters
         draw_snapshot_letters()
     elseif grid_ui_state.grid_mode == 5 then
-        -- Effects screen - Centered layout with effect selector
-        local effect_names = { "delay", "eq" }
+        -- Effects screen - Centered layout with symbols
+        local effect_symbols = { "|..", "=-=" } -- delay (echo), eq (bands)
         local content_x = 64
 
-        -- Draw effect type selector at top with even spacing
+        -- Draw effect type selector at top
         screen.font_face(1)
         screen.font_size(8)
 
-        -- Approximate text widths for 8pt font
-        local text_widths = { 25, 10 }
-        local gap = 8
+        -- Evenly space symbols across the screen
+        local spacing = 128 / 3
+        local positions = { spacing * 1, spacing * 2 }
 
-        -- Calculate total width and center position
-        local total_width = text_widths[1] + gap + text_widths[2]
-        local start_x = (128 - total_width) / 2
-
-        -- Draw each text with calculated positions
-        local current_x = start_x
+        -- Draw each symbol
         for i = 1, 2 do
             local brightness = (effects_mode_state.selected_effect == i) and 15 or 4
             screen.level(brightness)
-            screen.move(current_x, 8)
-            screen.text(effect_names[i])
-            current_x = current_x + text_widths[i] + gap
+            screen.move(positions[i], 8)
+            screen.text_center(effect_symbols[i])
         end
 
         -- Draw parameter values based on selected effect
@@ -1487,10 +1337,20 @@ function key(n, z)
                 -- Inputs mode: Previous input type
                 input_mode_state.selected_input = util.clamp(input_mode_state.selected_input - 1, 1, 5)
                 input_mode_state.selected_param = 1 -- Reset param selection
+                -- Show input name in banner
+                local input_names = { "INPUT", "OSCILLATOR", "DUST", "NOISE", "FILE" }
+                if params:get("info_banner") == 2 then
+                    info_banner_mod.show(input_names[input_mode_state.selected_input])
+                end
             elseif grid_ui_state.grid_mode == 5 then
                 -- Effects mode: Previous effect type
                 effects_mode_state.selected_effect = util.clamp(effects_mode_state.selected_effect - 1, 1, 2)
                 effects_mode_state.selected_param = 1 -- Reset param selection
+                -- Show effect name in banner
+                local effect_names = { "DELAY", "EQ" }
+                if params:get("info_banner") == 2 then
+                    info_banner_mod.show(effect_names[effects_mode_state.selected_effect])
+                end
             elseif grid_ui_state.grid_mode == 6 then
                 -- Matrix mode: Go to selected position
                 local old_x = grid_ui_state.current_matrix_pos.x
@@ -1534,10 +1394,20 @@ function key(n, z)
                 -- Inputs mode: Next input type
                 input_mode_state.selected_input = util.clamp(input_mode_state.selected_input + 1, 1, 5)
                 input_mode_state.selected_param = 1 -- Reset param selection
+                -- Show input name in banner
+                local input_names = { "INPUT", "OSCILLATOR", "DUST", "NOISE", "FILE" }
+                if params:get("info_banner") == 2 then
+                    info_banner_mod.show(input_names[input_mode_state.selected_input])
+                end
             elseif grid_ui_state.grid_mode == 5 then
                 -- Effects mode: Next effect type
                 effects_mode_state.selected_effect = util.clamp(effects_mode_state.selected_effect + 1, 1, 2)
                 effects_mode_state.selected_param = 1 -- Reset param selection
+                -- Show effect name in banner
+                local effect_names = { "DELAY", "EQ" }
+                if params:get("info_banner") == 2 then
+                    info_banner_mod.show(effect_names[effects_mode_state.selected_effect])
+                end
             elseif grid_ui_state.grid_mode == 6 then
                 -- Matrix mode: Set selector to random position
                 selected_matrix_pos.x = math.random(1, 14)
@@ -1914,10 +1784,11 @@ end
 function add_params()
     local num = #freqs
 
-    -- Current state is now managed by the params system
+    -- ====================
+    -- GLOBAL SETTINGS
+    -- ====================
+    params:add_separator("global_settings", "Global Settings")
 
-    -- global controls
-    params:add_group("global", 16)
     params:add {
         type = "control",
         id = "q",
@@ -1935,7 +1806,7 @@ function add_params()
     params:add {
         type = "control",
         id = "glide",
-        name = "glide",
+        name = "Glide",
         controlspec = controlspec.new(0.05, 20, 'lin', 0.01, 0.1, 's'),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
@@ -1959,10 +1830,17 @@ function add_params()
         default = 2
     }
 
+    -- ====================
+    -- INPUT SOURCES
+    -- ====================
+    params:add_separator("input_sources", "Input Sources")
+
+    -- Audio In
+    params:add_separator("audio_in_section", "> Audio In")
     params:add {
         type = "control",
         id = "audio_in_level",
-        name = "Audio In Level",
+        name = "Level",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(level)
@@ -1970,10 +1848,12 @@ function add_params()
         end
     }
 
+    -- Noise
+    params:add_separator("noise_section", "> Noise")
     params:add {
         type = "control",
         id = "noise_level",
-        name = "Noise Level",
+        name = "Level",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(level)
@@ -1983,30 +1863,8 @@ function add_params()
 
     params:add {
         type = "control",
-        id = "dust_level",
-        name = "Dust Level",
-        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
-        formatter = function(p) return string.format("%.2f", p:get()) end,
-        action = function(level)
-            if engine and engine.dust_level then engine.dust_level(level) end
-        end
-    }
-
-    params:add {
-        type = "control",
-        id = "dust_density",
-        name = "Dust Density",
-        controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
-        formatter = function(p) return string.format("%.0f Hz", p:get()) end,
-        action = function(density)
-            if engine and engine.dust_density then engine.dust_density(density) end
-        end
-    }
-
-    params:add {
-        type = "control",
         id = "noise_lfo_rate",
-        name = "Noise LFO Rate",
+        name = "LFO Rate",
         controlspec = controlspec.new(0, 20, 'lin', 0.01, 0, 'Hz'),
         formatter = function(p)
             local val = p:get()
@@ -2024,7 +1882,7 @@ function add_params()
     params:add {
         type = "control",
         id = "noise_lfo_depth",
-        name = "Noise LFO Depth",
+        name = "LFO Depth",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
         formatter = function(p) return string.format("%.0f%%", p:get() * 100) end,
         action = function(depth)
@@ -2032,10 +1890,36 @@ function add_params()
         end
     }
 
+    -- Dust
+    params:add_separator("dust_section", "> Dust")
+    params:add {
+        type = "control",
+        id = "dust_level",
+        name = "Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end,
+        action = function(level)
+            if engine and engine.dust_level then engine.dust_level(level) end
+        end
+    }
+
+    params:add {
+        type = "control",
+        id = "dust_density",
+        name = "Density",
+        controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
+        formatter = function(p) return string.format("%.0f Hz", p:get()) end,
+        action = function(density)
+            if engine and engine.dust_density then engine.dust_density(density) end
+        end
+    }
+
+    -- Oscillator
+    params:add_separator("osc_section", "> Oscillator")
     params:add {
         type = "control",
         id = "osc_level",
-        name = "Osc Level",
+        name = "Level",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(level)
@@ -2046,8 +1930,8 @@ function add_params()
     params:add {
         type = "control",
         id = "osc_freq",
-        name = "Osc Freq",
-        controlspec = controlspec.new(0.1, 2000, 'exp', 0, 220, 'Hz'),
+        name = "Frequency",
+        controlspec = controlspec.new(0.1, 2000, 'exp', 0, 5, 'Hz'),
         formatter = function(p) return string.format("%.2f Hz", p:get()) end,
         action = function(freq)
             if engine and engine.osc_freq then engine.osc_freq(freq) end
@@ -2057,7 +1941,7 @@ function add_params()
     params:add {
         type = "control",
         id = "osc_timbre",
-        name = "Osc Timbre",
+        name = "Timbre",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.3),
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(timbre)
@@ -2068,7 +1952,7 @@ function add_params()
     params:add {
         type = "control",
         id = "osc_warp",
-        name = "Osc Morph",
+        name = "Morph",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(warp)
@@ -2079,7 +1963,7 @@ function add_params()
     params:add {
         type = "control",
         id = "osc_mod_rate",
-        name = "Osc Mod Rate",
+        name = "Mod Rate",
         controlspec = controlspec.new(0.1, 100, 'exp', 0.1, 5.0, 'Hz'),
         formatter = function(p) return string.format("%.1f Hz", p:get()) end,
         action = function(rate)
@@ -2090,7 +1974,7 @@ function add_params()
     params:add {
         type = "control",
         id = "osc_mod_depth",
-        name = "Osc Mod Depth",
+        name = "Mod Depth",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(depth)
@@ -2098,6 +1982,8 @@ function add_params()
         end
     }
 
+    -- File
+    params:add_separator("file_section", "> File")
     params:add {
         type = "file",
         id = "file_path",
@@ -2113,7 +1999,7 @@ function add_params()
     params:add {
         type = "control",
         id = "file_level",
-        name = "File Level",
+        name = "Level",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(level)
@@ -2124,7 +2010,7 @@ function add_params()
     params:add {
         type = "control",
         id = "file_speed",
-        name = "File Speed",
+        name = "Speed",
         controlspec = controlspec.new(-4, 4, 'lin', 0.01, 1.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(speed)
@@ -2135,7 +2021,7 @@ function add_params()
     params:add {
         type = "binary",
         id = "file_gate",
-        name = "File Play/Stop",
+        name = "Play/Stop",
         behavior = "toggle",
         default = 0,
         action = function(gate)
@@ -2143,11 +2029,17 @@ function add_params()
         end
     }
 
-    -- Delay effect parameters
+    -- ====================
+    -- OUTPUT EFFECTS
+    -- ====================
+    params:add_separator("output_effects", "Output Effects")
+
+    -- Delay
+    params:add_separator("delay_section", "> Delay")
     params:add {
         type = "control",
         id = "delay_time",
-        name = "Delay Time",
+        name = "Time",
         controlspec = controlspec.new(0.01, 2.0, 'exp', 0.01, 0.5, 's'),
         formatter = function(p) return string.format("%.2fs", p:get()) end,
         action = function(time)
@@ -2158,7 +2050,7 @@ function add_params()
     params:add {
         type = "control",
         id = "delay_feedback",
-        name = "Delay Feedback",
+        name = "Feedback",
         controlspec = controlspec.new(0, 0.95, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(feedback)
@@ -2169,7 +2061,7 @@ function add_params()
     params:add {
         type = "control",
         id = "delay_mix",
-        name = "Delay Mix",
+        name = "Mix",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(mix)
@@ -2180,7 +2072,7 @@ function add_params()
     params:add {
         type = "control",
         id = "delay_width",
-        name = "Delay Width",
+        name = "Width",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(width)
@@ -2188,11 +2080,12 @@ function add_params()
         end
     }
 
-    -- EQ effect parameters
+    -- EQ
+    params:add_separator("eq_section", "> EQ")
     params:add {
         type = "control",
         id = "eq_low_cut",
-        name = "EQ Low Cut",
+        name = "Low Cut",
         controlspec = controlspec.new(20, 2000, 'exp', 1, 20, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end,
         action = function(freq)
@@ -2203,7 +2096,7 @@ function add_params()
     params:add {
         type = "control",
         id = "eq_high_cut",
-        name = "EQ High Cut",
+        name = "High Cut",
         controlspec = controlspec.new(1000, 20000, 'exp', 1, 20000, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end,
         action = function(freq)
@@ -2214,7 +2107,7 @@ function add_params()
     params:add {
         type = "control",
         id = "eq_low_gain",
-        name = "EQ Low Gain",
+        name = "Low Gain",
         controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
         formatter = function(p) return string.format("%.1f dB", p:get()) end,
         action = function(gain)
@@ -2225,7 +2118,7 @@ function add_params()
     params:add {
         type = "control",
         id = "eq_mid_gain",
-        name = "EQ Mid Gain",
+        name = "Mid Gain",
         controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
         formatter = function(p) return string.format("%.1f dB", p:get()) end,
         action = function(gain)
@@ -2236,7 +2129,7 @@ function add_params()
     params:add {
         type = "control",
         id = "eq_high_gain",
-        name = "EQ High Gain",
+        name = "High Gain",
         controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
         formatter = function(p) return string.format("%.1f dB", p:get()) end,
         action = function(gain)
@@ -2244,52 +2137,11 @@ function add_params()
         end
     }
 
-    -- Individual band parameters for current state (hidden from UI)
-    params:add_group("bands", num * 4)
-    for i = 1, num do
-        params:add {
-            type = "control",
-            id = string.format("band_%02d_level", i),
-            name = string.format("Band %02d Level", i),
-            controlspec = controlspec.new(-60, 12, 'lin', 0.1, -12, 'dB'),
-            formatter = function(p) return string.format("%.1f dB", p:get()) end,
-            action = function(level)
-                if engine and engine.level then engine.level(i, level) end
-            end
-        }
-        params:add {
-            type = "control",
-            id = string.format("band_%02d_pan", i),
-            name = string.format("Band %02d Pan", i),
-            controlspec = controlspec.new(-1, 1, 'lin', 0.01, 0),
-            formatter = function(p) return string.format("%.2f", p:get()) end,
-            action = function(pan)
-                if engine and engine.pan then engine.pan(i, pan) end
-            end
-        }
-        params:add {
-            type = "control",
-            id = string.format("band_%02d_thresh", i),
-            name = string.format("Band %02d Thresh", i),
-            controlspec = controlspec.new(0, 0.2, 'lin', 0.001, 0),
-            formatter = function(p) return string.format("%.3f", p:get()) end,
-            action = function(thresh)
-                if engine and engine.thresh_band then engine.thresh_band(i, thresh) end
-            end
-        }
-        params:add {
-            type = "control",
-            id = string.format("band_%02d_decimate", i),
-            name = string.format("Band %02d Decimate", i),
-            controlspec = controlspec.new(100, 48000, 'exp', 1, 48000, 'Hz'),
-            formatter = function(p) return string.format("%.0f Hz", p:get()) end,
-            action = function(rate)
-                if engine and engine.decimate_band then engine.decimate_band(i, rate) end
-            end
-        }
-    end
+    -- ====================
+    -- SNAPSHOTS
+    -- ====================
+    params:add_separator("snapshots_section", "Snapshots")
 
-    -- Add snapshot parameters for persistence
     -- Snapshot A
     params:add_group("snapshot A", 88)
     params:add {
@@ -3135,6 +2987,53 @@ function add_params()
             name = string.format("%02d Decimate", i),
             controlspec = controlspec.new(100, 48000, 'exp', 1, 48000),
             formatter = function(p) return string.format("%.0f Hz", p:get()) end
+        }
+    end
+
+    -- ====================
+    -- BANDS (Current State)
+    -- ====================
+    params:add_group("bands", num * 4)
+    for i = 1, num do
+        params:add {
+            type = "control",
+            id = string.format("band_%02d_level", i),
+            name = string.format("Band %02d Level", i),
+            controlspec = controlspec.new(-60, 12, 'lin', 0.1, -12, 'dB'),
+            formatter = function(p) return string.format("%.1f dB", p:get()) end,
+            action = function(level)
+                if engine and engine.level then engine.level(i, level) end
+            end
+        }
+        params:add {
+            type = "control",
+            id = string.format("band_%02d_pan", i),
+            name = string.format("Band %02d Pan", i),
+            controlspec = controlspec.new(-1, 1, 'lin', 0.01, 0),
+            formatter = function(p) return string.format("%.2f", p:get()) end,
+            action = function(pan)
+                if engine and engine.pan then engine.pan(i, pan) end
+            end
+        }
+        params:add {
+            type = "control",
+            id = string.format("band_%02d_thresh", i),
+            name = string.format("Band %02d Thresh", i),
+            controlspec = controlspec.new(0, 0.2, 'lin', 0.001, 0),
+            formatter = function(p) return string.format("%.3f", p:get()) end,
+            action = function(thresh)
+                if engine and engine.thresh_band then engine.thresh_band(i, thresh) end
+            end
+        }
+        params:add {
+            type = "control",
+            id = string.format("band_%02d_decimate", i),
+            name = string.format("Band %02d Decimate", i),
+            controlspec = controlspec.new(100, 48000, 'exp', 1, 48000, 'Hz'),
+            formatter = function(p) return string.format("%.0f Hz", p:get()) end,
+            action = function(rate)
+                if engine and engine.decimate_band then engine.decimate_band(i, rate) end
+            end
         }
     end
 end
