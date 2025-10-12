@@ -252,25 +252,25 @@ function Helper.handle_input_mode(x, y, shift_held, save_to_snapshot, current_sn
             input_mode_state.selected_input = 1 -- Live
             input_mode_state.selected_param = 1
             if show_banner then
-                show_banner("Live")
+                show_banner("INPUT")
             end
         elseif x >= 5 and x <= 8 then
             input_mode_state.selected_input = 2 -- Osc
             input_mode_state.selected_param = 1
             if show_banner then
-                show_banner("Osc")
+                show_banner("OSC")
             end
         elseif x >= 9 and x <= 12 then
             input_mode_state.selected_input = 3 -- Dust
             input_mode_state.selected_param = 1
             if show_banner then
-                show_banner("Dust")
+                show_banner("DUST")
             end
         elseif x >= 13 and x <= 16 then
             input_mode_state.selected_input = 4 -- Noise
             input_mode_state.selected_param = 1
             if show_banner then
-                show_banner("Noise")
+                show_banner("NOISE")
             end
         end
         return

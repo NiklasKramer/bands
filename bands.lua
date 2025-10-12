@@ -28,7 +28,7 @@ local freqs = {
     1300, 1600, 2000, 2600, 3500, 5000, 8000, 12000
 }
 
-local mode_names = { "inputs", "levels", "pans", "thresholds", "decimate", "matrix" }
+local mode_names = { "INPUTS", "LEVELS", "PANS", "THRESHOLDS", "DECIMATE", "MATRIX" }
 local band_meters = {}
 local band_meter_polls
 local grid_ui_state
@@ -753,11 +753,12 @@ function redraw()
             screen.font_size(8)
             screen.level(8)
             screen.move(content_x, 28)
-            screen.text_center("Level")
+            screen.text_center("LEVEL")
 
-            screen.font_size(12)
+            screen.font_face(1)
+            screen.font_size(16)
             screen.level(15)
-            screen.move(content_x, 42)
+            screen.move(content_x, 45)
             screen.text_center(string.format("%.2f", audio_level))
 
             -- Parameter indicator (1 of 1)
@@ -772,7 +773,7 @@ function redraw()
             local osc_warp = params:get("osc_warp")
             local osc_mod_rate = params:get("osc_mod_rate")
 
-            local param_names = { "Level", "Freq", "Timbre", "Morph", "Mod Rate" }
+            local param_names = { "LEVEL", "FREQ", "TIMBRE", "MORPH", "MOD RATE" }
             local param_values = {
                 string.format("%.2f", osc_level),
                 string.format("%.1f Hz", osc_freq),
@@ -789,9 +790,10 @@ function redraw()
             screen.text_center(param_names[input_mode_state.selected_param])
 
             -- Display current value
-            screen.font_size(12)
+            screen.font_face(1)
+            screen.font_size(16)
             screen.level(15)
-            screen.move(content_x, 42)
+            screen.move(content_x, 45)
             screen.text_center(param_values[input_mode_state.selected_param])
 
             -- Parameter indicator (5 dots, current one bright, centered)
@@ -809,7 +811,7 @@ function redraw()
             local dust_level = params:get("dust_level")
             local dust_density = params:get("dust_density")
 
-            local param_names = { "Level", "Density" }
+            local param_names = { "LEVEL", "DENSITY" }
             local param_values = {
                 string.format("%.2f", dust_level),
                 string.format("%d Hz", dust_density)
@@ -823,9 +825,10 @@ function redraw()
             screen.text_center(param_names[input_mode_state.selected_param])
 
             -- Display current value
-            screen.font_size(12)
+            screen.font_face(1)
+            screen.font_size(16)
             screen.level(15)
-            screen.move(content_x, 42)
+            screen.move(content_x, 45)
             screen.text_center(param_values[input_mode_state.selected_param])
 
             -- Parameter indicator (2 dots, current one bright, centered)
@@ -844,7 +847,7 @@ function redraw()
             local noise_lfo_rate = params:get("noise_lfo_rate")
             local noise_lfo_depth = params:get("noise_lfo_depth")
 
-            local param_names = { "Level", "LFO Rate", "LFO Depth" }
+            local param_names = { "LEVEL", "LFO RATE", "LFO DEPTH" }
             local param_values = {
                 string.format("%.2f", noise_level),
                 string.format("%.1f Hz", noise_lfo_rate),
@@ -859,9 +862,10 @@ function redraw()
             screen.text_center(param_names[input_mode_state.selected_param])
 
             -- Display current value
-            screen.font_size(12)
+            screen.font_face(1)
+            screen.font_size(16)
             screen.level(15)
-            screen.move(content_x, 42)
+            screen.move(content_x, 45)
             screen.text_center(param_values[input_mode_state.selected_param])
 
             -- Parameter indicator (3 dots, current one bright, centered)
@@ -1200,7 +1204,7 @@ function key(n, z)
                 local old_y = grid_ui_state.current_matrix_pos.y
                 apply_blend(selected_matrix_pos.x, selected_matrix_pos.y, old_x, old_y)
                 if params:get("info_banner") == 2 then
-                    info_banner_mod.show(string.format("Position %d,%d", selected_matrix_pos.x, selected_matrix_pos.y))
+                    info_banner_mod.show(string.format("POSITION %d,%d", selected_matrix_pos.x, selected_matrix_pos.y))
                 end
             elseif grid_ui_state.grid_mode == 1 then
                 -- Reset levels to -12dB
@@ -1301,7 +1305,7 @@ function enc(n, d)
 
             -- Show snapshot change banner
             if params:get("info_banner") == 2 then
-                info_banner_mod.show("Snapshot " .. snapshots_list[new_index])
+                info_banner_mod.show("SNAPSHOT " .. snapshots_list[new_index])
             end
         else
             -- Encoder 1: Switch between all 6 modes (inputs, levels, pans, thresholds, decimate, matrix)
@@ -1321,16 +1325,16 @@ function enc(n, d)
 
             if input_mode_state.selected_input == 1 then
                 max_params = 1
-                param_names = { "Level" }
+                param_names = { "LEVEL" }
             elseif input_mode_state.selected_input == 2 then
                 max_params = 5
-                param_names = { "Level", "Freq", "Timbre", "Morph", "Mod Rate" }
+                param_names = { "LEVEL", "FREQ", "TIMBRE", "MORPH", "MOD RATE" }
             elseif input_mode_state.selected_input == 3 then
                 max_params = 2
-                param_names = { "Level", "Density" }
+                param_names = { "LEVEL", "DENSITY" }
             elseif input_mode_state.selected_input == 4 then
                 max_params = 3
-                param_names = { "Level", "LFO Rate", "LFO Depth" }
+                param_names = { "LEVEL", "LFO RATE", "LFO DEPTH" }
             end
 
             input_mode_state.selected_param = util.clamp(input_mode_state.selected_param + d, 1, max_params)
@@ -1421,7 +1425,7 @@ function enc(n, d)
                 local new_glide = math.max(0.05, math.min(20, current_glide + d * 0.1))
                 params:set("glide", new_glide)
                 if params:get("info_banner") == 2 then
-                    info_banner_mod.show(string.format("Glide: %.2fs", new_glide))
+                    info_banner_mod.show(string.format("GLIDE: %.2fs", new_glide))
                 end
             else
                 -- Normal: Navigate Y position

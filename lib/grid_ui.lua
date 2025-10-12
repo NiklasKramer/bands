@@ -26,7 +26,7 @@ function GridUI.handle_matrix_control(ui_state, x, y, snapshot_functions)
         if ui_state.shift_held then
             snapshot_functions.clear_path()
             if snapshot_functions.show_banner then
-                snapshot_functions.show_banner("Path Cleared")
+                snapshot_functions.show_banner("PATH CLEARED")
             end
         else
             snapshot_functions.toggle_path_mode()
@@ -44,13 +44,13 @@ function GridUI.handle_matrix_control(ui_state, x, y, snapshot_functions)
                 -- Shift + press: remove point from path if it exists
                 snapshot_functions.remove_path_point(matrix_x, matrix_y)
                 if snapshot_functions.show_banner then
-                    snapshot_functions.show_banner("Point Removed")
+                    snapshot_functions.show_banner("POINT REMOVED")
                 end
             else
                 -- Normal press: add point to path
                 snapshot_functions.add_path_point(matrix_x, matrix_y)
                 if snapshot_functions.show_banner then
-                    snapshot_functions.show_banner("Point Added")
+                    snapshot_functions.show_banner("POINT ADDED")
                 end
             end
         else
@@ -116,7 +116,7 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                 if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
                 -- Show info banner for matrix mode
                 if snapshot_functions.show_banner then
-                    snapshot_functions.show_banner("matrix")
+                    snapshot_functions.show_banner("MATRIX")
                 end
             end
         elseif y >= 1 and y <= 15 then
