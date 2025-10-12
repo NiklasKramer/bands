@@ -125,6 +125,54 @@ Engine_Bands : CroneEngine {
             Out.ar(outBus, sig * level * Lag.kr(level > 0, 0.5) * 0.6);
         }).add;
         
+        // Stereo delay with width control
+        SynthDef(\delayFx, { |inBus = 0, outBus = 0, time = 0.5, feedback = 0.5, mix = 0.0, width = 0.5|
+            var sig, delayedL, delayedR, maxTime, wet;
+            sig = In.ar(inBus, 2);
+            
+            maxTime = 2.0;
+            time = Lag.kr(time.clip(0.01, maxTime), 0.1);
+            feedback = Lag.kr(feedback.clip(0.0, 0.95), 0.1);
+            mix = Lag.kr(mix.clip(0.0, 1.0), 0.1);
+            width = Lag.kr(width.clip(0.0, 1.0), 0.1);
+            
+            // Dual delay lines with different times for width
+            delayedL = LocalIn.ar(1);
+            delayedR = LocalIn.ar(1);
+            
+            delayedL = DelayC.ar(delayedL + sig[0], maxTime, time * (1 - (width * 0.3)));
+            delayedR = DelayC.ar(delayedR + sig[1], maxTime, time * (1 + (width * 0.3)));
+            
+            LocalOut.ar([delayedL * feedback, delayedR * feedback]);
+            
+            wet = [delayedL, delayedR];
+            sig = (sig * (1 - mix)) + (wet * mix);
+            
+            Out.ar(outBus, sig);
+        }).add;
+        
+        // 3-band EQ with high/low cuts
+        SynthDef(\eqFx, { |inBus = 0, outBus = 0, lowCut = 20, highCut = 20000, lowGain = 0, midGain = 0, highGain = 0|
+            var sig, low, mid, high;
+            sig = In.ar(inBus, 2);
+            
+            lowCut = Lag.kr(lowCut.clip(20, 2000), 0.1);
+            highCut = Lag.kr(highCut.clip(1000, 20000), 0.1);
+            lowGain = Lag.kr(lowGain.clip(-24, 12), 0.1);
+            midGain = Lag.kr(midGain.clip(-24, 12), 0.1);
+            highGain = Lag.kr(highGain.clip(-24, 12), 0.1);
+            
+            // Split into three bands with crossover filters
+            low = LPF.ar(sig, lowCut) * lowGain.dbamp;
+            high = HPF.ar(sig, highCut) * highGain.dbamp;
+            mid = HPF.ar(LPF.ar(sig, highCut), lowCut) * midGain.dbamp;
+            
+            // Sum bands
+            sig = low + mid + high;
+            
+            Out.ar(outBus, sig);
+        }).add;
+        
         // Final limiter synth for summed output
         SynthDef(\finalLimiter, { |inBus = 0, outBus = 0|
             var sig;
@@ -198,6 +246,10 @@ Engine_Bands : CroneEngine {
         
         // Create an internal bus for summing all bands
         ~sumBus = Bus.audio(context.server, 2);
+        
+        // Create buses for effects chain
+        ~delayBus = Bus.audio(context.server, 2);
+        ~eqBus = Bus.audio(context.server, 2);
         
         // Create a buffer for file playback (initially empty)
         ~fileBuffer = Buffer.alloc(context.server, context.server.sampleRate * 2, 2); // 2 seconds, stereo
@@ -287,12 +339,40 @@ Engine_Bands : CroneEngine {
 
         context.server.sync;
         
+        // Create effects chain synths
+        ~delayFx = Synth.tail(
+            ~bandGroup,
+            \delayFx,
+            [
+                \inBus, ~sumBus,
+                \outBus, ~delayBus,
+                \time, 0.5,
+                \feedback, 0.5,
+                \mix, 0.0,
+                \width, 0.5
+            ]
+        );
+        
+        ~eqFx = Synth.tail(
+            ~bandGroup,
+            \eqFx,
+            [
+                \inBus, ~delayBus,
+                \outBus, ~eqBus,
+                \lowCut, 20,
+                \highCut, 20000,
+                \lowGain, 0,
+                \midGain, 0,
+                \highGain, 0
+            ]
+        );
+        
         // Create final limiter synth to process the summed output
         ~finalLimiter = Synth.tail(
             ~bandGroup,
             \finalLimiter,
             [
-                \inBus, ~sumBus,
+                \inBus, ~eqBus,
                 \outBus, context.out_b
             ]
         );
@@ -546,11 +626,87 @@ Engine_Bands : CroneEngine {
                 ~fileSource.set(\gate, gate);
             };
         });
+        
+        // Delay effect parameters
+        this.addCommand("delay_time", "f", { arg msg;
+            var time;
+            time = msg[1].clip(0.01, 2.0);
+            if(~delayFx.notNil) {
+                ~delayFx.set(\time, time);
+            };
+        });
+        
+        this.addCommand("delay_feedback", "f", { arg msg;
+            var feedback;
+            feedback = msg[1].clip(0.0, 0.95);
+            if(~delayFx.notNil) {
+                ~delayFx.set(\feedback, feedback);
+            };
+        });
+        
+        this.addCommand("delay_mix", "f", { arg msg;
+            var mix;
+            mix = msg[1].clip(0.0, 1.0);
+            if(~delayFx.notNil) {
+                ~delayFx.set(\mix, mix);
+            };
+        });
+        
+        this.addCommand("delay_width", "f", { arg msg;
+            var width;
+            width = msg[1].clip(0.0, 1.0);
+            if(~delayFx.notNil) {
+                ~delayFx.set(\width, width);
+            };
+        });
+        
+        // EQ effect parameters
+        this.addCommand("eq_low_cut", "f", { arg msg;
+            var freq;
+            freq = msg[1].clip(20, 2000);
+            if(~eqFx.notNil) {
+                ~eqFx.set(\lowCut, freq);
+            };
+        });
+        
+        this.addCommand("eq_high_cut", "f", { arg msg;
+            var freq;
+            freq = msg[1].clip(1000, 20000);
+            if(~eqFx.notNil) {
+                ~eqFx.set(\highCut, freq);
+            };
+        });
+        
+        this.addCommand("eq_low_gain", "f", { arg msg;
+            var gain;
+            gain = msg[1].clip(-24, 12);
+            if(~eqFx.notNil) {
+                ~eqFx.set(\lowGain, gain);
+            };
+        });
+        
+        this.addCommand("eq_mid_gain", "f", { arg msg;
+            var gain;
+            gain = msg[1].clip(-24, 12);
+            if(~eqFx.notNil) {
+                ~eqFx.set(\midGain, gain);
+            };
+        });
+        
+        this.addCommand("eq_high_gain", "f", { arg msg;
+            var gain;
+            gain = msg[1].clip(-24, 12);
+            if(~eqFx.notNil) {
+                ~eqFx.set(\highGain, gain);
+            };
+        });
     }
 
     // ---- Teardown ------------------------------------------------------------
     free {
         if(~finalLimiter.notNil) { ~finalLimiter.free; ~finalLimiter = nil; };
+        if(~eqFx.notNil) { ~eqFx.free; ~eqFx = nil; };
+        if(~delayFx.notNil) { ~delayFx.free; ~delayFx = nil; };
         if(~audioInSource.notNil) { ~audioInSource.free; ~audioInSource = nil; };
         if(~noiseSource.notNil) { ~noiseSource.free; ~noiseSource = nil; };
         if(~dustSource.notNil) { ~dustSource.free; ~dustSource = nil; };
@@ -558,6 +714,8 @@ Engine_Bands : CroneEngine {
         if(~fileSource.notNil) { ~fileSource.free; ~fileSource = nil; };
         if(~bands.notNil) { ~bands.do({ |x| x.free }); ~bands = nil; };
         if(~bandGroup.notNil) { ~bandGroup.free; ~bandGroup = nil; };
+        if(~eqBus.notNil) { ~eqBus.free; ~eqBus = nil; };
+        if(~delayBus.notNil) { ~delayBus.free; ~delayBus = nil; };
         if(~sumBus.notNil) { ~sumBus.free; ~sumBus = nil; };
         if(~inputBus.notNil) { ~inputBus.free; ~inputBus = nil; };
         if(~fileBuffer.notNil) { ~fileBuffer.free; ~fileBuffer = nil; };
