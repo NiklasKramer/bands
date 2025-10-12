@@ -518,9 +518,7 @@ function redraw_grid()
 
 
     -- Draw main content based on mode
-    if grid_ui_state.grid_mode == 0 then
-        grid_draw_mod.draw_inputs_mode(g, input_mode_state)
-    elseif grid_ui_state.grid_mode >= 1 and grid_ui_state.grid_mode <= 4 then
+    if grid_ui_state.grid_mode >= 1 and grid_ui_state.grid_mode <= 4 then
         grid_draw_mod.draw_band_controls(g, num)
     elseif grid_ui_state.grid_mode == 6 then
         grid_draw_mod.draw_matrix_mode(g)

@@ -386,9 +386,9 @@ end
 
 -- Draw mode selector
 function GridDraw.draw_mode_selector(g)
-    -- Modes 0-5: INPUTS, LEVELS, PANS, THRESHOLDS, DECIMATE, EFFECTS
-    for x = 1, 6 do
-        local brightness = (x - 1 == grid_ui_state.grid_mode) and 15 or 4
+    -- Only show band modes on grid: LEVELS, PANS, THRESHOLDS, DECIMATE (modes 1-4)
+    for x = 1, 4 do
+        local brightness = (x == grid_ui_state.grid_mode) and 15 or 4
         g:led(x, 16, brightness)
     end
 end
