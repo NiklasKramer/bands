@@ -11,6 +11,7 @@ local path_mod = include 'lib/path'
 local glide_mod = include 'lib/glide'
 local grid_draw_mod = include 'lib/grid_draw'
 local info_banner_mod = include 'lib/info_banner'
+local screen_indicators = include 'lib/screen_indicators'
 
 -- params
 local controlspec = require 'controlspec'
@@ -608,6 +609,9 @@ function init()
         metro = metro
     })
 
+    -- initialize screen indicators
+    screen_indicators.init()
+
     -- start grid refresh metro
     metro_grid_refresh = metro.init(function()
         -- Always redraw grid - glide animation is drawn as part of normal grid drawing
@@ -1136,6 +1140,9 @@ function redraw()
         end
     end
 
+    -- Draw screen indicators on the left side (6 modes total)
+    screen_indicators.draw_screen_indicator(6, grid_ui_state.grid_mode + 1)
+
     -- Draw info banner on top of everything
     info_banner_mod.draw()
 
@@ -1268,31 +1275,8 @@ end
 
 function enc(n, d)
     if n == 1 then
-        -- Encoder 1: Switch modes
-        if grid_ui_state.shift_held then
-            -- Shift + enc 1: Switch between all 6 modes (inputs, levels, pans, thresholds, decimate, matrix)
-            grid_ui_state.grid_mode = grid_ui_state.grid_mode + d
-            if grid_ui_state.grid_mode < 0 then
-                grid_ui_state.grid_mode = 5
-            elseif grid_ui_state.grid_mode > 5 then
-                grid_ui_state.grid_mode = 0
-            end
-        else
-            -- Normal enc 1: Switch between first 5 modes (inputs, levels, pans, thresholds, decimate)
-            local new_mode = grid_ui_state.grid_mode + d
-            if new_mode < 0 then
-                new_mode = 4
-            elseif new_mode > 4 then
-                new_mode = 0
-            end
-            -- Only update if staying in range 0-4
-            if grid_ui_state.grid_mode <= 4 then
-                grid_ui_state.grid_mode = new_mode
-            else
-                -- If currently in matrix mode, go to mode 0 or 4 depending on direction
-                grid_ui_state.grid_mode = d > 0 and 0 or 4
-            end
-        end
+        -- Encoder 1: Switch between all 6 modes (inputs, levels, pans, thresholds, decimate, matrix)
+        grid_ui_state.grid_mode = util.clamp(grid_ui_state.grid_mode + d, 0, 5)
 
         -- Show mode change banner
         if params:get("info_banner") == 2 then
