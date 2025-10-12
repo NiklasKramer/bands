@@ -685,18 +685,21 @@ local function draw_snapshot_letters()
         grid_ui_state.current_matrix_pos.y
     )
 
-    -- Position centered on right side of screen (stacked vertically)
-    local letter_x = 120
+    -- Position on right side of screen (stacked vertically)
+    local MARGIN_RIGHT = 8
+    local letter_x = 128 - MARGIN_RIGHT
     local letters = { "A", "B", "C", "D" }
     local weights = { a_w, b_w, c_w, d_w }
-    local y_positions = { 20, 32, 44, 56 } -- Tighter vertical spacing
+    local letter_spacing = 12
+    local start_y = 20
 
     -- Draw each letter with brightness based on weight
+    screen.font_face(1)
+    screen.font_size(8)
     for i = 1, 4 do
-        local brightness = math.floor(weights[i] * 15) -- 0 to 15 range
+        local brightness = math.floor(weights[i] * 15)
         screen.level(brightness)
-        screen.font_size(12)                           -- Smaller font
-        screen.move(letter_x, y_positions[i])
+        screen.move(letter_x, start_y + (i - 1) * letter_spacing)
         screen.text(letters[i])
     end
 end
@@ -706,42 +709,60 @@ function redraw()
     screen.clear()
     screen.level(15)
 
+    -- Consistent layout constants
+    local MARGIN_LEFT = 9
+    local MARGIN_TOP = 9
+    local LABEL_Y = 20
+    local VALUE_Y = 42
+    local DOT_Y = 58
+
     -- Mode-specific screens
     if grid_ui_state.grid_mode == 0 then
-        -- Inputs mode - Selected input visualization with parameters
-        local input_names = { "Live", "Osc", "Dust", "Noise" }
+        -- Inputs mode - Centered layout
+        local input_names = { "INPUT", "OSC", "DUST", "NOISE" }
+        local content_x = 64 -- Center x for content
 
-        -- Draw input type selector tabs at top
+        -- Draw input type selector at top with even spacing
         screen.font_face(1)
         screen.font_size(8)
+
+        -- Approximate text widths for 8pt font (in pixels)
+        local text_widths = { 25, 15, 20, 25 }
+        local gap = 8 -- Even gap between text items
+
+        -- Calculate total width and center position
+        local total_width = text_widths[1] + gap + text_widths[2] + gap + text_widths[3] + gap + text_widths[4]
+        local start_x = (128 - total_width) / 2
+
+        -- Draw each text with calculated positions
+        local current_x = start_x
         for i = 1, 4 do
-            local x_pos = (i - 1) * 22 + 4
             local brightness = (input_mode_state.selected_input == i) and 15 or 4
             screen.level(brightness)
-            screen.move(x_pos, 10)
+            screen.move(current_x, 12)
             screen.text(input_names[i])
+            current_x = current_x + text_widths[i] + gap
         end
 
-        -- Draw parameter values (no graphics)
+        -- Draw parameter values (centered)
         if input_mode_state.selected_input == 1 then
-            -- Live audio
+            -- Input audio
             local audio_level = params:get("audio_in_level")
 
             screen.font_face(1)
-            screen.font_size(12)
-            screen.level(15)
-            screen.move(5, 30)
-            screen.text("Level")
-
-            screen.font_size(20)
-            screen.move(5, 52)
-            screen.text(string.format("%.2f", audio_level))
-
-            -- Parameter indicator (1 of 1)
             screen.font_size(8)
             screen.level(8)
-            screen.move(5, 62)
-            screen.circle(5, 60, 1.5)
+            screen.move(content_x, 28)
+            screen.text_center("Level")
+
+            screen.font_size(12)
+            screen.level(15)
+            screen.move(content_x, 42)
+            screen.text_center(string.format("%.2f", audio_level))
+
+            -- Parameter indicator (1 of 1)
+            screen.level(15)
+            screen.circle(content_x, 54, 1.5)
             screen.fill()
         elseif input_mode_state.selected_input == 2 then
             -- Oscillator
@@ -762,21 +783,25 @@ function redraw()
 
             -- Display current parameter name
             screen.font_face(1)
-            screen.font_size(12)
-            screen.level(15)
-            screen.move(5, 30)
-            screen.text(param_names[input_mode_state.selected_param])
+            screen.font_size(8)
+            screen.level(8)
+            screen.move(content_x, 28)
+            screen.text_center(param_names[input_mode_state.selected_param])
 
             -- Display current value
-            screen.font_size(20)
-            screen.move(5, 52)
-            screen.text(param_values[input_mode_state.selected_param])
+            screen.font_size(12)
+            screen.level(15)
+            screen.move(content_x, 42)
+            screen.text_center(param_values[input_mode_state.selected_param])
 
-            -- Parameter indicator (5 dots, current one bright)
+            -- Parameter indicator (5 dots, current one bright, centered)
+            local dot_spacing = 6
+            local dots_width = 5 * dot_spacing - dot_spacing
+            local dot_start_x = (128 - dots_width) / 2
             for i = 1, 5 do
                 local brightness = (i == input_mode_state.selected_param) and 15 or 4
                 screen.level(brightness)
-                screen.circle(5 + (i - 1) * 6, 60, 1.5)
+                screen.circle(dot_start_x + (i - 1) * dot_spacing, 54, 1.5)
                 screen.fill()
             end
         elseif input_mode_state.selected_input == 3 then
@@ -792,21 +817,25 @@ function redraw()
 
             -- Display current parameter name
             screen.font_face(1)
-            screen.font_size(12)
-            screen.level(15)
-            screen.move(5, 30)
-            screen.text(param_names[input_mode_state.selected_param])
+            screen.font_size(8)
+            screen.level(8)
+            screen.move(content_x, 28)
+            screen.text_center(param_names[input_mode_state.selected_param])
 
             -- Display current value
-            screen.font_size(20)
-            screen.move(5, 52)
-            screen.text(param_values[input_mode_state.selected_param])
+            screen.font_size(12)
+            screen.level(15)
+            screen.move(content_x, 42)
+            screen.text_center(param_values[input_mode_state.selected_param])
 
-            -- Parameter indicator (2 dots, current one bright)
+            -- Parameter indicator (2 dots, current one bright, centered)
+            local dot_spacing = 6
+            local dots_width = 2 * dot_spacing - dot_spacing
+            local dot_start_x = (128 - dots_width) / 2
             for i = 1, 2 do
                 local brightness = (i == input_mode_state.selected_param) and 15 or 4
                 screen.level(brightness)
-                screen.circle(5 + (i - 1) * 6, 60, 1.5)
+                screen.circle(dot_start_x + (i - 1) * dot_spacing, 54, 1.5)
                 screen.fill()
             end
         elseif input_mode_state.selected_input == 4 then
@@ -824,21 +853,25 @@ function redraw()
 
             -- Display current parameter name
             screen.font_face(1)
-            screen.font_size(12)
-            screen.level(15)
-            screen.move(5, 30)
-            screen.text(param_names[input_mode_state.selected_param])
+            screen.font_size(8)
+            screen.level(8)
+            screen.move(content_x, 28)
+            screen.text_center(param_names[input_mode_state.selected_param])
 
             -- Display current value
-            screen.font_size(20)
-            screen.move(5, 52)
-            screen.text(param_values[input_mode_state.selected_param])
+            screen.font_size(12)
+            screen.level(15)
+            screen.move(content_x, 42)
+            screen.text_center(param_values[input_mode_state.selected_param])
 
-            -- Parameter indicator (3 dots, current one bright)
+            -- Parameter indicator (3 dots, current one bright, centered)
+            local dot_spacing = 6
+            local dots_width = 3 * dot_spacing - dot_spacing
+            local dot_start_x = (128 - dots_width) / 2
             for i = 1, 3 do
                 local brightness = (i == input_mode_state.selected_param) and 15 or 4
                 screen.level(brightness)
-                screen.circle(5 + (i - 1) * 6, 60, 1.5)
+                screen.circle(dot_start_x + (i - 1) * dot_spacing, 54, 1.5)
                 screen.fill()
             end
         end
@@ -846,22 +879,22 @@ function redraw()
         -- Draw snapshot letters
         draw_snapshot_letters()
     elseif grid_ui_state.grid_mode == 1 then
-        -- No text on levels screen - pure visual meters
         -- Levels screen - Visual meters
         local num_bands = math.min(16, #freqs)
         local meter_width = 3
         local meter_spacing = 5
-        local start_x = 8
-        local meter_height = 50
-        local meter_y = 5 -- Move meters higher
+        local total_width = num_bands * meter_spacing - (meter_spacing - meter_width)
+        local start_x = (128 - total_width) / 2
+        local meter_height = 48
+        local meter_y = (64 - meter_height) / 2
 
         for i = 1, num_bands do
             local x = start_x + (i - 1) * meter_spacing
             local meter_v = band_meters[i] or 0
             local level_db = params:get(string.format("band_%02d_level", i))
 
-            -- Convert level to meter height (0-50 pixels)
-            local level_height = math.max(0, (level_db + 60) * 50 / 72) -- -60dB to +12dB range
+            -- Convert level to meter height
+            local level_height = math.max(0, (level_db + 60) * meter_height / 72) -- -60dB to +12dB range
 
             -- Convert audio meter value to dB, then to height
             local meter_db = 0
@@ -870,7 +903,7 @@ function redraw()
             else
                 meter_db = -60                      -- Silent
             end
-            local peak_height = math.max(0, (meter_db + 60) * 50 / 72)
+            local peak_height = math.max(0, (meter_db + 60) * meter_height / 72)
 
             -- Draw meter background (dark)
             screen.level(2)
@@ -898,7 +931,7 @@ function redraw()
         if selected_band >= 1 and selected_band <= num_bands then
             local cursor_x = start_x + (selected_band - 1) * meter_spacing
             screen.level(15)
-            screen.rect(cursor_x, meter_y + meter_height + 5, meter_width, 3)
+            screen.rect(cursor_x, meter_y + meter_height + 3, meter_width, 2)
             screen.fill()
         end
 
@@ -909,9 +942,10 @@ function redraw()
         local num_bands = math.min(16, #freqs)
         local indicator_width = 3
         local indicator_spacing = 5
-        local start_x = 8
-        local indicator_height = 50
-        local indicator_y = 5
+        local total_width = num_bands * indicator_spacing - (indicator_spacing - indicator_width)
+        local start_x = (128 - total_width) / 2
+        local indicator_height = 48
+        local indicator_y = (64 - indicator_height) / 2
 
         for i = 1, num_bands do
             local x = start_x + (i - 1) * indicator_spacing
@@ -942,7 +976,7 @@ function redraw()
         if selected_band >= 1 and selected_band <= num_bands then
             local cursor_x = start_x + (selected_band - 1) * indicator_spacing
             screen.level(15)
-            screen.rect(cursor_x, indicator_y + indicator_height + 5, indicator_width, 3)
+            screen.rect(cursor_x, indicator_y + indicator_height + 3, indicator_width, 2)
             screen.fill()
         end
 
@@ -953,9 +987,10 @@ function redraw()
         local num_bands = math.min(16, #freqs)
         local indicator_width = 3
         local indicator_spacing = 5
-        local start_x = 8
-        local indicator_height = 50
-        local indicator_y = 5
+        local total_width = num_bands * indicator_spacing - (indicator_spacing - indicator_width)
+        local start_x = (128 - total_width) / 2
+        local indicator_height = 48
+        local indicator_y = (64 - indicator_height) / 2
 
         for i = 1, num_bands do
             local x = start_x + (i - 1) * indicator_spacing
@@ -981,7 +1016,7 @@ function redraw()
         if selected_band >= 1 and selected_band <= num_bands then
             local cursor_x = start_x + (selected_band - 1) * indicator_spacing
             screen.level(15)
-            screen.rect(cursor_x, indicator_y + indicator_height + 5, indicator_width, 3)
+            screen.rect(cursor_x, indicator_y + indicator_height + 3, indicator_width, 2)
             screen.fill()
         end
 
@@ -992,9 +1027,10 @@ function redraw()
         local num_bands = math.min(16, #freqs)
         local indicator_width = 3
         local indicator_spacing = 5
-        local start_x = 8
-        local indicator_height = 50
-        local indicator_y = 5
+        local total_width = num_bands * indicator_spacing - (indicator_spacing - indicator_width)
+        local start_x = (128 - total_width) / 2
+        local indicator_height = 48
+        local indicator_y = (64 - indicator_height) / 2
 
         for i = 1, num_bands do
             local x = start_x + (i - 1) * indicator_spacing
@@ -1021,25 +1057,19 @@ function redraw()
         if selected_band >= 1 and selected_band <= num_bands then
             local cursor_x = start_x + (selected_band - 1) * indicator_spacing
             screen.level(15)
-            screen.rect(cursor_x, indicator_y + indicator_height + 5, indicator_width, 3)
+            screen.rect(cursor_x, indicator_y + indicator_height + 3, indicator_width, 2)
             screen.fill()
         end
 
         -- Draw snapshot letters
         draw_snapshot_letters()
     elseif grid_ui_state.grid_mode == 5 then
-        -- Matrix screen - Visual matrix display
+        -- Matrix screen - Visual matrix display (spacious, centered)
         local matrix_size = 14
         local cell_size = 4
         local matrix_width = matrix_size * cell_size
-        local num_bands = math.min(16, #freqs)
-        local meter_width = 2
-        local meter_spacing = 3
-        local total_meter_width = num_bands * meter_spacing - (meter_spacing - meter_width)
-        local gap = 8                           -- Gap between matrix and meters
-        local total_width = matrix_width + gap + total_meter_width
-        local start_x = (128 - total_width) / 2 -- Center everything horizontally
-        local start_y = 8
+        local start_x = (128 - matrix_width) / 2
+        local start_y = (64 - matrix_width) / 2
 
         -- Draw matrix grid
         for x = 1, matrix_size do
@@ -1113,31 +1143,8 @@ function redraw()
             screen.stroke()
         end
 
-        -- Draw minimal meters next to matrix
-        local meter_start_x = start_x + matrix_width + gap
-        local matrix_full_height = matrix_size * cell_size
-        local meter_height = matrix_full_height * 2 / 3
-        local meter_y = start_y + (matrix_full_height - meter_height) / 2 -- Center vertically
-
-        for i = 1, num_bands do
-            local x = meter_start_x + (i - 1) * meter_spacing
-            local meter_v = band_meters[i] or 0
-
-            -- Calculate meter height (0-1 range)
-            local meter_fill_height = meter_v * meter_height
-
-            -- Draw background
-            screen.level(2)
-            screen.rect(x, meter_y, meter_width, meter_height)
-            screen.fill()
-
-            -- Draw meter value (from bottom up)
-            if meter_fill_height > 0 then
-                screen.level(15)
-                screen.rect(x, meter_y + meter_height - meter_fill_height, meter_width, meter_fill_height)
-                screen.fill()
-            end
-        end
+        -- Draw snapshot letters
+        draw_snapshot_letters()
     end
 
     -- Draw screen indicators on the left side (6 modes total)
@@ -1275,13 +1282,36 @@ end
 
 function enc(n, d)
     if n == 1 then
-        -- Encoder 1: Switch between all 6 modes (inputs, levels, pans, thresholds, decimate, matrix)
-        grid_ui_state.grid_mode = util.clamp(grid_ui_state.grid_mode + d, 0, 5)
+        if grid_ui_state.shift_held then
+            -- Shift + Encoder 1: Switch snapshots
+            local snapshots_list = { "A", "B", "C", "D" }
+            local current_index = 1
+            for i, snap in ipairs(snapshots_list) do
+                if snap == current_snapshot then
+                    current_index = i
+                    break
+                end
+            end
 
-        -- Show mode change banner
-        if params:get("info_banner") == 2 then
-            local mode_name = mode_names[grid_ui_state.grid_mode + 1] or "unknown"
-            info_banner_mod.show(mode_name)
+            local new_index = current_index + d
+            if new_index < 1 then new_index = 4 end
+            if new_index > 4 then new_index = 1 end
+
+            switch_to_snapshot(snapshots_list[new_index])
+
+            -- Show snapshot change banner
+            if params:get("info_banner") == 2 then
+                info_banner_mod.show("Snapshot " .. snapshots_list[new_index])
+            end
+        else
+            -- Encoder 1: Switch between all 6 modes (inputs, levels, pans, thresholds, decimate, matrix)
+            grid_ui_state.grid_mode = util.clamp(grid_ui_state.grid_mode + d, 0, 5)
+
+            -- Show mode change banner
+            if params:get("info_banner") == 2 then
+                local mode_name = mode_names[grid_ui_state.grid_mode + 1] or "unknown"
+                info_banner_mod.show(mode_name)
+            end
         end
     elseif n == 2 then
         if grid_ui_state.grid_mode == 0 then
