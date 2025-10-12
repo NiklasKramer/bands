@@ -15,20 +15,25 @@ local get_current_snapshot
 function GridDraw.draw_inputs_mode(g, input_mode_state)
     local helper = include 'lib/helper'
 
-    -- Row 1: Input selector (Live/Noise/Dust)
-    -- Keys 1-6: Live (brightest if selected)
-    for x = 1, 6 do
+    -- Row 1: Input selector (Live/Osc/Dust/Noise)
+    -- Keys 1-4: Live
+    for x = 1, 4 do
         local brightness = (input_mode_state.selected_input == 1) and 15 or 4
         g:led(x, 1, brightness)
     end
-    -- Keys 7-11: Noise
-    for x = 7, 11 do
+    -- Keys 5-8: Osc
+    for x = 5, 8 do
         local brightness = (input_mode_state.selected_input == 2) and 15 or 4
         g:led(x, 1, brightness)
     end
-    -- Keys 12-16: Dust
-    for x = 12, 16 do
+    -- Keys 9-12: Dust
+    for x = 9, 12 do
         local brightness = (input_mode_state.selected_input == 3) and 15 or 4
+        g:led(x, 1, brightness)
+    end
+    -- Keys 13-16: Noise
+    for x = 13, 16 do
+        local brightness = (input_mode_state.selected_input == 4) and 15 or 4
         g:led(x, 1, brightness)
     end
 
@@ -42,6 +47,57 @@ function GridDraw.draw_inputs_mode(g, input_mode_state)
             g:led(x, 2, brightness)
         end
     elseif input_mode_state.selected_input == 2 then
+        -- Osc: Level, Freq, Timbre, Morph, Mod Rate (rows 2-6)
+        local osc_level = params:get("osc_level")
+        local osc_x = helper.osc_level_to_x(osc_level)
+        for x = 1, 16 do
+            local brightness = (x == osc_x) and 15 or (x < osc_x and 4 or 0)
+            g:led(x, 2, brightness)
+        end
+
+        local osc_freq = params:get("osc_freq")
+        local osc_freq_x = helper.osc_freq_to_x(osc_freq)
+        for x = 1, 16 do
+            local brightness = (x == osc_freq_x) and 15 or (x < osc_freq_x and 4 or 0)
+            g:led(x, 3, brightness)
+        end
+
+        local osc_timbre = params:get("osc_timbre")
+        local osc_timbre_x = helper.osc_timbre_to_x(osc_timbre)
+        for x = 1, 16 do
+            local brightness = (x == osc_timbre_x) and 15 or (x < osc_timbre_x and 4 or 0)
+            g:led(x, 4, brightness)
+        end
+
+        local osc_warp = params:get("osc_warp")
+        local osc_warp_x = helper.osc_warp_to_x(osc_warp)
+        for x = 1, 16 do
+            local brightness = (x == osc_warp_x) and 15 or (x < osc_warp_x and 4 or 0)
+            g:led(x, 5, brightness)
+        end
+
+        local osc_mod_rate = params:get("osc_mod_rate")
+        local osc_mod_rate_x = helper.osc_mod_rate_to_x(osc_mod_rate)
+        for x = 1, 16 do
+            local brightness = (x == osc_mod_rate_x) and 15 or (x < osc_mod_rate_x and 4 or 0)
+            g:led(x, 6, brightness)
+        end
+    elseif input_mode_state.selected_input == 3 then
+        -- Dust: Level, Density (rows 2-3)
+        local dust_level = params:get("dust_level")
+        local dust_x = helper.dust_level_to_x(dust_level)
+        for x = 1, 16 do
+            local brightness = (x == dust_x) and 15 or (x < dust_x and 4 or 0)
+            g:led(x, 2, brightness)
+        end
+
+        local dust_density = params:get("dust_density")
+        local dust_density_x = helper.dust_density_to_x(dust_density)
+        for x = 1, 16 do
+            local brightness = (x == dust_density_x) and 15 or (x < dust_density_x and 4 or 0)
+            g:led(x, 3, brightness)
+        end
+    elseif input_mode_state.selected_input == 4 then
         -- Noise: Level, LFO Rate, LFO Depth (rows 2-4)
         local noise_level = params:get("noise_level")
         local noise_x = helper.noise_level_to_x(noise_level)
@@ -62,21 +118,6 @@ function GridDraw.draw_inputs_mode(g, input_mode_state)
         for x = 1, 16 do
             local brightness = (x == lfo_depth_x) and 15 or (x < lfo_depth_x and 4 or 0)
             g:led(x, 4, brightness)
-        end
-    elseif input_mode_state.selected_input == 3 then
-        -- Dust: Level, Density (rows 2-3)
-        local dust_level = params:get("dust_level")
-        local dust_x = helper.dust_level_to_x(dust_level)
-        for x = 1, 16 do
-            local brightness = (x == dust_x) and 15 or (x < dust_x and 4 or 0)
-            g:led(x, 2, brightness)
-        end
-
-        local dust_density = params:get("dust_density")
-        local dust_density_x = helper.dust_density_to_x(dust_density)
-        for x = 1, 16 do
-            local brightness = (x == dust_density_x) and 15 or (x < dust_density_x and 4 or 0)
-            g:led(x, 3, brightness)
         end
     end
 end

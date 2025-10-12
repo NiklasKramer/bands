@@ -9,6 +9,33 @@ function Helper.x_to_audio_level(x)
     return (x - 1) / 15
 end
 
+function Helper.x_to_osc_level(x)
+    -- keys 1-16 map to 0.0-1.0
+    return (x - 1) / 15
+end
+
+function Helper.x_to_osc_freq(x)
+    -- keys 1-16 map to 0.1-2000 Hz exponential
+    local normalized = (x - 1) / 15 -- 0 to 1
+    return 0.1 * math.exp(normalized * math.log(2000 / 0.1))
+end
+
+function Helper.x_to_osc_timbre(x)
+    -- keys 1-16 map to 0.0-1.0
+    return (x - 1) / 15
+end
+
+function Helper.x_to_osc_warp(x)
+    -- keys 1-16 map to 0.0-1.0
+    return (x - 1) / 15
+end
+
+function Helper.x_to_osc_mod_rate(x)
+    -- keys 1-16 map to 0.1-100 Hz exponential
+    local normalized = (x - 1) / 15 -- 0 to 1
+    return 0.1 * math.exp(normalized * math.log(100 / 0.1))
+end
+
 function Helper.x_to_noise_level(x)
     -- keys 1-16 map to 0.0-1.0
     return (x - 1) / 15
@@ -58,6 +85,28 @@ end
 
 function Helper.dust_density_to_x(density)
     local normalized = math.log((density - 1) * (math.exp(3) - 1) / 999 + 1) / 3
+    return util.clamp(util.round(normalized * 15 + 1), 1, 16)
+end
+
+function Helper.osc_level_to_x(level)
+    return util.clamp(util.round(level * 15 + 1), 1, 16)
+end
+
+function Helper.osc_freq_to_x(freq)
+    local normalized = math.log(freq / 0.1) / math.log(2000 / 0.1)
+    return util.clamp(util.round(normalized * 15 + 1), 1, 16)
+end
+
+function Helper.osc_timbre_to_x(timbre)
+    return util.clamp(util.round(timbre * 15 + 1), 1, 16)
+end
+
+function Helper.osc_warp_to_x(warp)
+    return util.clamp(util.round(warp * 15 + 1), 1, 16)
+end
+
+function Helper.osc_mod_rate_to_x(rate)
+    local normalized = math.log(rate / 0.1) / math.log(100 / 0.1)
     return util.clamp(util.round(normalized * 15 + 1), 1, 16)
 end
 
@@ -197,25 +246,31 @@ end
 function Helper.handle_input_mode(x, y, shift_held, save_to_snapshot, current_snapshot, show_banner, input_mode_state)
     local param_id, value, display_text
 
-    -- Row 1: Input selector (Live/Noise/Dust)
+    -- Row 1: Input selector (Live/Osc/Dust/Noise)
     if y == 1 then
-        if x >= 1 and x <= 6 then
+        if x >= 1 and x <= 4 then
             input_mode_state.selected_input = 1 -- Live
             input_mode_state.selected_param = 1
             if show_banner then
                 show_banner("Live")
             end
-        elseif x >= 7 and x <= 11 then
-            input_mode_state.selected_input = 2 -- Noise
+        elseif x >= 5 and x <= 8 then
+            input_mode_state.selected_input = 2 -- Osc
             input_mode_state.selected_param = 1
             if show_banner then
-                show_banner("Noise")
+                show_banner("Osc")
             end
-        elseif x >= 12 and x <= 16 then
+        elseif x >= 9 and x <= 12 then
             input_mode_state.selected_input = 3 -- Dust
             input_mode_state.selected_param = 1
             if show_banner then
                 show_banner("Dust")
+            end
+        elseif x >= 13 and x <= 16 then
+            input_mode_state.selected_input = 4 -- Noise
+            input_mode_state.selected_param = 1
+            if show_banner then
+                show_banner("Noise")
             end
         end
         return
@@ -230,6 +285,40 @@ function Helper.handle_input_mode(x, y, shift_held, save_to_snapshot, current_sn
             display_text = string.format("Audio In: %.2f", value)
         end
     elseif input_mode_state.selected_input == 2 then
+        -- Oscillator
+        if y == 2 then
+            value = Helper.x_to_osc_level(x)
+            param_id = "osc_level"
+            display_text = string.format("Osc: %.2f", value)
+        elseif y == 3 then
+            value = Helper.x_to_osc_freq(x)
+            param_id = "osc_freq"
+            display_text = string.format("Freq: %.1fHz", value)
+        elseif y == 4 then
+            value = Helper.x_to_osc_timbre(x)
+            param_id = "osc_timbre"
+            display_text = string.format("Timbre: %.2f", value)
+        elseif y == 5 then
+            value = Helper.x_to_osc_warp(x)
+            param_id = "osc_warp"
+            display_text = string.format("Morph: %.2f", value)
+        elseif y == 6 then
+            value = Helper.x_to_osc_mod_rate(x)
+            param_id = "osc_mod_rate"
+            display_text = string.format("Mod Rate: %.1fHz", value)
+        end
+    elseif input_mode_state.selected_input == 3 then
+        -- Dust
+        if y == 2 then
+            value = Helper.x_to_dust_level(x)
+            param_id = "dust_level"
+            display_text = string.format("Dust: %.2f", value)
+        elseif y == 3 then
+            value = Helper.x_to_dust_density(x)
+            param_id = "dust_density"
+            display_text = string.format("Dust Dens: %dHz", value)
+        end
+    elseif input_mode_state.selected_input == 4 then
         -- Noise
         if y == 2 then
             value = Helper.x_to_noise_level(x)
@@ -247,17 +336,6 @@ function Helper.handle_input_mode(x, y, shift_held, save_to_snapshot, current_sn
             value = Helper.x_to_noise_lfo_depth(x)
             param_id = "noise_lfo_depth"
             display_text = string.format("LFO Depth: %.0f%%", value * 100)
-        end
-    elseif input_mode_state.selected_input == 3 then
-        -- Dust
-        if y == 2 then
-            value = Helper.x_to_dust_level(x)
-            param_id = "dust_level"
-            display_text = string.format("Dust: %.2f", value)
-        elseif y == 3 then
-            value = Helper.x_to_dust_density(x)
-            param_id = "dust_density"
-            display_text = string.format("Dust Dens: %dHz", value)
         end
     end
 

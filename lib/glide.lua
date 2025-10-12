@@ -46,6 +46,24 @@ function Glide.complete_glide()
     if glide_state.target_values.dust_density and engine and engine.dust_density then
         engine.dust_density(glide_state.target_values.dust_density)
     end
+    if glide_state.target_values.osc_level and engine and engine.osc_level then
+        engine.osc_level(glide_state.target_values.osc_level)
+    end
+    if glide_state.target_values.osc_freq and engine and engine.osc_freq then
+        engine.osc_freq(glide_state.target_values.osc_freq)
+    end
+    if glide_state.target_values.osc_timbre and engine and engine.osc_timbre then
+        engine.osc_timbre(glide_state.target_values.osc_timbre)
+    end
+    if glide_state.target_values.osc_warp and engine and engine.osc_warp then
+        engine.osc_warp(glide_state.target_values.osc_warp)
+    end
+    if glide_state.target_values.osc_mod_rate and engine and engine.osc_mod_rate then
+        engine.osc_mod_rate(glide_state.target_values.osc_mod_rate)
+    end
+    if glide_state.target_values.osc_mod_depth and engine and engine.osc_mod_depth then
+        engine.osc_mod_depth(glide_state.target_values.osc_mod_depth)
+    end
 
     for i = 1, #freqs do
         local level_id = string.format("band_%02d_level", i)
@@ -140,6 +158,30 @@ function Glide.update_glide_parameters(progress)
     local current_dust_density = glide_state.current_values.dust_density +
         (glide_state.target_values.dust_density - glide_state.current_values.dust_density) * progress
     params:set("dust_density", current_dust_density)
+
+    local current_osc_level = glide_state.current_values.osc_level +
+        (glide_state.target_values.osc_level - glide_state.current_values.osc_level) * progress
+    params:set("osc_level", current_osc_level)
+
+    local current_osc_freq = glide_state.current_values.osc_freq +
+        (glide_state.target_values.osc_freq - glide_state.current_values.osc_freq) * progress
+    params:set("osc_freq", current_osc_freq)
+
+    local current_osc_timbre = glide_state.current_values.osc_timbre +
+        (glide_state.target_values.osc_timbre - glide_state.current_values.osc_timbre) * progress
+    params:set("osc_timbre", current_osc_timbre)
+
+    local current_osc_warp = glide_state.current_values.osc_warp +
+        (glide_state.target_values.osc_warp - glide_state.current_values.osc_warp) * progress
+    params:set("osc_warp", current_osc_warp)
+
+    local current_osc_mod_rate = glide_state.current_values.osc_mod_rate +
+        (glide_state.target_values.osc_mod_rate - glide_state.current_values.osc_mod_rate) * progress
+    params:set("osc_mod_rate", current_osc_mod_rate)
+
+    local current_osc_mod_depth = glide_state.current_values.osc_mod_depth +
+        (glide_state.target_values.osc_mod_depth - glide_state.current_values.osc_mod_depth) * progress
+    params:set("osc_mod_depth", current_osc_mod_depth)
 
     -- Update matrix position during glide
     grid_ui_state.current_matrix_pos.x = glide_state.start_pos.x +

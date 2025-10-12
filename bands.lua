@@ -36,7 +36,7 @@ local selected_matrix_pos = { x = 1, y = 1 } -- Selected position for matrix nav
 
 -- Input mode state
 local input_mode_state = {
-    selected_input = 1, -- 1=live, 2=noise, 3=dust
+    selected_input = 1, -- 1=live, 2=osc, 3=dust, 4=noise
     selected_param = 1  -- Selected parameter within the input type
 }
 
@@ -93,6 +93,12 @@ local function init_current_state()
     params:set("noise_lfo_rate", params:get("snapshot_a_noise_lfo_rate"))
     params:set("noise_lfo_depth", params:get("snapshot_a_noise_lfo_depth"))
     params:set("dust_density", params:get("snapshot_a_dust_density"))
+    params:set("osc_level", params:get("snapshot_a_osc_level"))
+    params:set("osc_freq", params:get("snapshot_a_osc_freq"))
+    params:set("osc_timbre", params:get("snapshot_a_osc_timbre"))
+    params:set("osc_warp", params:get("snapshot_a_osc_warp"))
+    params:set("osc_mod_rate", params:get("snapshot_a_osc_mod_rate"))
+    params:set("osc_mod_depth", params:get("snapshot_a_osc_mod_depth"))
 
     for i = 1, #freqs do
         local level = params:get(string.format("snapshot_a_%02d_level", i))
@@ -127,6 +133,12 @@ local function store_snapshot(snapshot_name)
     params:set("snapshot_" .. string.lower(snapshot_name) .. "_noise_lfo_rate", params:get("noise_lfo_rate"))
     params:set("snapshot_" .. string.lower(snapshot_name) .. "_noise_lfo_depth", params:get("noise_lfo_depth"))
     params:set("snapshot_" .. string.lower(snapshot_name) .. "_dust_density", params:get("dust_density"))
+    params:set("snapshot_" .. string.lower(snapshot_name) .. "_osc_level", params:get("osc_level"))
+    params:set("snapshot_" .. string.lower(snapshot_name) .. "_osc_freq", params:get("osc_freq"))
+    params:set("snapshot_" .. string.lower(snapshot_name) .. "_osc_timbre", params:get("osc_timbre"))
+    params:set("snapshot_" .. string.lower(snapshot_name) .. "_osc_warp", params:get("osc_warp"))
+    params:set("snapshot_" .. string.lower(snapshot_name) .. "_osc_mod_rate", params:get("osc_mod_rate"))
+    params:set("snapshot_" .. string.lower(snapshot_name) .. "_osc_mod_depth", params:get("osc_mod_depth"))
 
     for i = 1, #freqs do
         local level_id = string.format("snapshot_%s_%02d_level", string.lower(snapshot_name), i)
@@ -159,6 +171,12 @@ local function recall_snapshot(snapshot_name)
     params:set("noise_lfo_rate", params:get("snapshot_" .. string.lower(snapshot_name) .. "_noise_lfo_rate"))
     params:set("noise_lfo_depth", params:get("snapshot_" .. string.lower(snapshot_name) .. "_noise_lfo_depth"))
     params:set("dust_density", params:get("snapshot_" .. string.lower(snapshot_name) .. "_dust_density"))
+    params:set("osc_level", params:get("snapshot_" .. string.lower(snapshot_name) .. "_osc_level"))
+    params:set("osc_freq", params:get("snapshot_" .. string.lower(snapshot_name) .. "_osc_freq"))
+    params:set("osc_timbre", params:get("snapshot_" .. string.lower(snapshot_name) .. "_osc_timbre"))
+    params:set("osc_warp", params:get("snapshot_" .. string.lower(snapshot_name) .. "_osc_warp"))
+    params:set("osc_mod_rate", params:get("snapshot_" .. string.lower(snapshot_name) .. "_osc_mod_rate"))
+    params:set("osc_mod_depth", params:get("snapshot_" .. string.lower(snapshot_name) .. "_osc_mod_depth"))
 
     for i = 1, #freqs do
         local level_id = string.format("snapshot_%s_%02d_level", string.lower(snapshot_name), i)
@@ -237,6 +255,36 @@ function apply_blend(x, y, old_x, old_y)
         params:get("snapshot_c_dust_density") * c_w +
         params:get("snapshot_d_dust_density") * d_w
 
+    target_values.osc_level = params:get("snapshot_a_osc_level") * a_w +
+        params:get("snapshot_b_osc_level") * b_w +
+        params:get("snapshot_c_osc_level") * c_w +
+        params:get("snapshot_d_osc_level") * d_w
+
+    target_values.osc_freq = params:get("snapshot_a_osc_freq") * a_w +
+        params:get("snapshot_b_osc_freq") * b_w +
+        params:get("snapshot_c_osc_freq") * c_w +
+        params:get("snapshot_d_osc_freq") * d_w
+
+    target_values.osc_timbre = params:get("snapshot_a_osc_timbre") * a_w +
+        params:get("snapshot_b_osc_timbre") * b_w +
+        params:get("snapshot_c_osc_timbre") * c_w +
+        params:get("snapshot_d_osc_timbre") * d_w
+
+    target_values.osc_warp = params:get("snapshot_a_osc_warp") * a_w +
+        params:get("snapshot_b_osc_warp") * b_w +
+        params:get("snapshot_c_osc_warp") * c_w +
+        params:get("snapshot_d_osc_warp") * d_w
+
+    target_values.osc_mod_rate = params:get("snapshot_a_osc_mod_rate") * a_w +
+        params:get("snapshot_b_osc_mod_rate") * b_w +
+        params:get("snapshot_c_osc_mod_rate") * c_w +
+        params:get("snapshot_d_osc_mod_rate") * d_w
+
+    target_values.osc_mod_depth = params:get("snapshot_a_osc_mod_depth") * a_w +
+        params:get("snapshot_b_osc_mod_depth") * b_w +
+        params:get("snapshot_c_osc_mod_depth") * c_w +
+        params:get("snapshot_d_osc_mod_depth") * d_w
+
     -- Blend per-band parameters from params
     for i = 1, #freqs do
         local level_id = string.format("band_%02d_level", i)
@@ -301,6 +349,18 @@ function apply_blend(x, y, old_x, old_y)
                 (glide_state.target_values.noise_lfo_depth - glide_state.current_values.noise_lfo_depth) * progress
             current_values.dust_density = glide_state.current_values.dust_density +
                 (glide_state.target_values.dust_density - glide_state.current_values.dust_density) * progress
+            current_values.osc_level = glide_state.current_values.osc_level +
+                (glide_state.target_values.osc_level - glide_state.current_values.osc_level) * progress
+            current_values.osc_freq = glide_state.current_values.osc_freq +
+                (glide_state.target_values.osc_freq - glide_state.current_values.osc_freq) * progress
+            current_values.osc_timbre = glide_state.current_values.osc_timbre +
+                (glide_state.target_values.osc_timbre - glide_state.current_values.osc_timbre) * progress
+            current_values.osc_warp = glide_state.current_values.osc_warp +
+                (glide_state.target_values.osc_warp - glide_state.current_values.osc_warp) * progress
+            current_values.osc_mod_rate = glide_state.current_values.osc_mod_rate +
+                (glide_state.target_values.osc_mod_rate - glide_state.current_values.osc_mod_rate) * progress
+            current_values.osc_mod_depth = glide_state.current_values.osc_mod_depth +
+                (glide_state.target_values.osc_mod_depth - glide_state.current_values.osc_mod_depth) * progress
 
             for i = 1, #freqs do
                 local level_id = string.format("band_%02d_level", i)
@@ -350,6 +410,12 @@ function apply_blend(x, y, old_x, old_y)
             glide_state.current_values.noise_lfo_rate = params:get("noise_lfo_rate")
             glide_state.current_values.noise_lfo_depth = params:get("noise_lfo_depth")
             glide_state.current_values.dust_density = params:get("dust_density")
+            glide_state.current_values.osc_level = params:get("osc_level")
+            glide_state.current_values.osc_freq = params:get("osc_freq")
+            glide_state.current_values.osc_timbre = params:get("osc_timbre")
+            glide_state.current_values.osc_warp = params:get("osc_warp")
+            glide_state.current_values.osc_mod_rate = params:get("osc_mod_rate")
+            glide_state.current_values.osc_mod_depth = params:get("osc_mod_depth")
 
             for i = 1, #freqs do
                 local level_id = string.format("band_%02d_level", i)
@@ -383,6 +449,12 @@ function apply_blend(x, y, old_x, old_y)
         params:set("noise_lfo_rate", target_values.noise_lfo_rate)
         params:set("noise_lfo_depth", target_values.noise_lfo_depth)
         params:set("dust_density", target_values.dust_density)
+        params:set("osc_level", target_values.osc_level)
+        params:set("osc_freq", target_values.osc_freq)
+        params:set("osc_timbre", target_values.osc_timbre)
+        params:set("osc_warp", target_values.osc_warp)
+        params:set("osc_mod_rate", target_values.osc_mod_rate)
+        params:set("osc_mod_depth", target_values.osc_mod_depth)
 
         for i = 1, #freqs do
             local level_id = string.format("band_%02d_level", i)
@@ -609,17 +681,17 @@ local function draw_snapshot_letters()
         grid_ui_state.current_matrix_pos.y
     )
 
-    -- Position on right side of screen (stacked vertically)
-    local letter_x = 110
+    -- Position centered on right side of screen (stacked vertically)
+    local letter_x = 120
     local letters = { "A", "B", "C", "D" }
     local weights = { a_w, b_w, c_w, d_w }
-    local y_positions = { 15, 30, 45, 60 } -- Stacked vertically
+    local y_positions = { 20, 32, 44, 56 } -- Tighter vertical spacing
 
     -- Draw each letter with brightness based on weight
     for i = 1, 4 do
         local brightness = math.floor(weights[i] * 15) -- 0 to 15 range
         screen.level(brightness)
-        screen.font_size(20)                           -- Large font
+        screen.font_size(12)                           -- Smaller font
         screen.move(letter_x, y_positions[i])
         screen.text(letters[i])
     end
@@ -633,98 +705,138 @@ function redraw()
     -- Mode-specific screens
     if grid_ui_state.grid_mode == 0 then
         -- Inputs mode - Selected input visualization with parameters
-        local input_names = { "Live", "Noise", "Dust" }
+        local input_names = { "Live", "Osc", "Dust", "Noise" }
 
         -- Draw input type selector tabs at top
         screen.font_face(1)
         screen.font_size(8)
-        for i = 1, 3 do
-            local x_pos = (i - 1) * 36 + 8
+        for i = 1, 4 do
+            local x_pos = (i - 1) * 22 + 4
             local brightness = (input_mode_state.selected_input == i) and 15 or 4
             screen.level(brightness)
             screen.move(x_pos, 10)
             screen.text(input_names[i])
         end
 
-        -- Draw visualization and parameters based on selected input
+        -- Draw parameter values (no graphics)
         if input_mode_state.selected_input == 1 then
-            -- Live audio - circle visualization
+            -- Live audio
             local audio_level = params:get("audio_in_level")
-            local audio_x = 40
-            local audio_y = 38
-            local audio_radius = 5 + audio_level * 12
-            screen.level(math.floor(3 + audio_level * 12))
-            screen.circle(audio_x, audio_y, audio_radius)
-            screen.fill()
 
-            -- Display value
             screen.font_face(1)
-            screen.font_size(8)
+            screen.font_size(12)
             screen.level(15)
-            screen.move(5, 60)
-            screen.text(string.format("Level: %.2f", audio_level))
+            screen.move(5, 30)
+            screen.text("Level")
+
+            screen.font_size(20)
+            screen.move(5, 52)
+            screen.text(string.format("%.2f", audio_level))
+
+            -- Parameter indicator (1 of 1)
+            screen.font_size(8)
+            screen.level(8)
+            screen.move(5, 62)
+            screen.circle(5, 60, 1.5)
+            screen.fill()
         elseif input_mode_state.selected_input == 2 then
-            -- Noise - horizontal lines
+            -- Oscillator
+            local osc_level = params:get("osc_level")
+            local osc_freq = params:get("osc_freq")
+            local osc_timbre = params:get("osc_timbre")
+            local osc_warp = params:get("osc_warp")
+            local osc_mod_rate = params:get("osc_mod_rate")
+
+            local param_names = { "Level", "Freq", "Timbre", "Morph", "Mod Rate" }
+            local param_values = {
+                string.format("%.2f", osc_level),
+                string.format("%.1f Hz", osc_freq),
+                string.format("%.2f", osc_timbre),
+                string.format("%.2f", osc_warp),
+                string.format("%.1f Hz", osc_mod_rate)
+            }
+
+            -- Display current parameter name
+            screen.font_face(1)
+            screen.font_size(12)
+            screen.level(15)
+            screen.move(5, 30)
+            screen.text(param_names[input_mode_state.selected_param])
+
+            -- Display current value
+            screen.font_size(20)
+            screen.move(5, 52)
+            screen.text(param_values[input_mode_state.selected_param])
+
+            -- Parameter indicator (5 dots, current one bright)
+            for i = 1, 5 do
+                local brightness = (i == input_mode_state.selected_param) and 15 or 4
+                screen.level(brightness)
+                screen.circle(5 + (i - 1) * 6, 60, 1.5)
+                screen.fill()
+            end
+        elseif input_mode_state.selected_input == 3 then
+            -- Dust
+            local dust_level = params:get("dust_level")
+            local dust_density = params:get("dust_density")
+
+            local param_names = { "Level", "Density" }
+            local param_values = {
+                string.format("%.2f", dust_level),
+                string.format("%d Hz", dust_density)
+            }
+
+            -- Display current parameter name
+            screen.font_face(1)
+            screen.font_size(12)
+            screen.level(15)
+            screen.move(5, 30)
+            screen.text(param_names[input_mode_state.selected_param])
+
+            -- Display current value
+            screen.font_size(20)
+            screen.move(5, 52)
+            screen.text(param_values[input_mode_state.selected_param])
+
+            -- Parameter indicator (2 dots, current one bright)
+            for i = 1, 2 do
+                local brightness = (i == input_mode_state.selected_param) and 15 or 4
+                screen.level(brightness)
+                screen.circle(5 + (i - 1) * 6, 60, 1.5)
+                screen.fill()
+            end
+        elseif input_mode_state.selected_input == 4 then
+            -- Noise
             local noise_level = params:get("noise_level")
             local noise_lfo_rate = params:get("noise_lfo_rate")
             local noise_lfo_depth = params:get("noise_lfo_depth")
 
-            local noise_x = 40
-            local noise_y_start = 20
-            local noise_height = 30
-            if noise_level > 0 then
-                local line_count = math.floor(noise_level * 8) + 1
-                local time_offset = util.time() * (noise_lfo_rate > 0 and noise_lfo_rate or 1)
-                for i = 1, line_count do
-                    local y = noise_y_start + (i - 1) * (noise_height / line_count)
-                    local lfo_offset = 0
-                    if noise_lfo_rate > 0 then
-                        lfo_offset = math.sin(time_offset + i * 0.5) * noise_lfo_depth * 3
-                    end
-                    screen.level(math.floor(3 + noise_level * 12))
-                    screen.move(noise_x - 12 + lfo_offset, y)
-                    screen.line(noise_x + 12 + lfo_offset, y)
-                    screen.stroke()
-                end
-            end
+            local param_names = { "Level", "LFO Rate", "LFO Depth" }
+            local param_values = {
+                string.format("%.2f", noise_level),
+                string.format("%.1f Hz", noise_lfo_rate),
+                string.format("%.0f%%", noise_lfo_depth * 100)
+            }
 
-            -- Display values
+            -- Display current parameter name
             screen.font_face(1)
-            screen.font_size(8)
+            screen.font_size(12)
             screen.level(15)
-            screen.move(5, 55)
-            screen.text(string.format("Lvl: %.2f", noise_level))
-            screen.move(5, 63)
-            screen.text(string.format("LFO: %.1fHz", noise_lfo_rate))
-        elseif input_mode_state.selected_input == 3 then
-            -- Dust - scattered dots
-            local dust_level = params:get("dust_level")
-            local dust_density = params:get("dust_density")
+            screen.move(5, 30)
+            screen.text(param_names[input_mode_state.selected_param])
 
-            if dust_level > 0 then
-                local dust_x = 40
-                local dust_y = 35
-                local dot_count = math.floor(dust_density / 50) + 3
-                local spread = 15
-                math.randomseed(12345)
-                for i = 1, dot_count do
-                    local dx = (math.random() - 0.5) * spread * 2
-                    local dy = (math.random() - 0.5) * spread * 2
-                    local dot_brightness = math.floor(3 + dust_level * 12)
-                    screen.level(dot_brightness)
-                    screen.circle(dust_x + dx, dust_y + dy, 1.5)
-                    screen.fill()
-                end
+            -- Display current value
+            screen.font_size(20)
+            screen.move(5, 52)
+            screen.text(param_values[input_mode_state.selected_param])
+
+            -- Parameter indicator (3 dots, current one bright)
+            for i = 1, 3 do
+                local brightness = (i == input_mode_state.selected_param) and 15 or 4
+                screen.level(brightness)
+                screen.circle(5 + (i - 1) * 6, 60, 1.5)
+                screen.fill()
             end
-
-            -- Display values
-            screen.font_face(1)
-            screen.font_size(8)
-            screen.level(15)
-            screen.move(5, 55)
-            screen.text(string.format("Lvl: %.2f", dust_level))
-            screen.move(5, 63)
-            screen.text(string.format("Dens: %dHz", dust_density))
         end
 
         -- Draw snapshot letters
@@ -1065,18 +1177,9 @@ function key(n, z)
         if n == 2 then
             -- Key 2: Context-dependent action
             if grid_ui_state.grid_mode == 0 then
-                -- Inputs mode: Reset all inputs to defaults
-                params:set("audio_in_level", 1.0)
-                params:set("noise_level", 0.0)
-                params:set("dust_level", 0.0)
-                params:set("noise_lfo_rate", 0.0)
-                params:set("noise_lfo_depth", 1.0)
-                params:set("dust_density", 10)
-                -- Save to current snapshot
-                store_snapshot(current_snapshot)
-                if params:get("info_banner") == 2 then
-                    info_banner_mod.show("Inputs Reset")
-                end
+                -- Inputs mode: Previous input type
+                input_mode_state.selected_input = util.clamp(input_mode_state.selected_input - 1, 1, 4)
+                input_mode_state.selected_param = 1 -- Reset param selection
             elseif grid_ui_state.grid_mode == 5 then
                 -- Matrix mode: Go to selected position
                 local old_x = grid_ui_state.current_matrix_pos.x
@@ -1117,18 +1220,9 @@ function key(n, z)
         elseif n == 3 then
             -- Key 3: Context-dependent action
             if grid_ui_state.grid_mode == 0 then
-                -- Inputs mode: Randomize all inputs
-                params:set("audio_in_level", math.random())
-                params:set("noise_level", math.random())
-                params:set("dust_level", math.random())
-                params:set("noise_lfo_rate", math.random() * 20)
-                params:set("noise_lfo_depth", math.random())
-                params:set("dust_density", math.random(1, 1000))
-                -- Save to current snapshot
-                store_snapshot(current_snapshot)
-                if params:get("info_banner") == 2 then
-                    info_banner_mod.show("Inputs Random")
-                end
+                -- Inputs mode: Next input type
+                input_mode_state.selected_input = util.clamp(input_mode_state.selected_input + 1, 1, 4)
+                input_mode_state.selected_param = 1 -- Reset param selection
             elseif grid_ui_state.grid_mode == 5 then
                 -- Matrix mode: Set selector to random position
                 selected_matrix_pos.x = math.random(1, 14)
@@ -1207,18 +1301,25 @@ function enc(n, d)
         end
     elseif n == 2 then
         if grid_ui_state.grid_mode == 0 then
-            -- Inputs mode: Select input type (Live/Noise/Dust)
-            input_mode_state.selected_input = input_mode_state.selected_input + d
-            if input_mode_state.selected_input < 1 then
-                input_mode_state.selected_input = 3
-            elseif input_mode_state.selected_input > 3 then
-                input_mode_state.selected_input = 1
+            -- Inputs mode: Select parameter within current input type
+            local max_params = 1 -- Default for Live (only 1 param)
+            local param_names = {}
+
+            if input_mode_state.selected_input == 1 then
+                max_params = 1
+                param_names = { "Level" }
+            elseif input_mode_state.selected_input == 2 then
+                max_params = 5
+                param_names = { "Level", "Freq", "Timbre", "Morph", "Mod Rate" }
+            elseif input_mode_state.selected_input == 3 then
+                max_params = 2
+                param_names = { "Level", "Density" }
+            elseif input_mode_state.selected_input == 4 then
+                max_params = 3
+                param_names = { "Level", "LFO Rate", "LFO Depth" }
             end
-            input_mode_state.selected_param = 1 -- Reset param selection
-            local input_names = { "Live", "Noise", "Dust" }
-            if params:get("info_banner") == 2 then
-                info_banner_mod.show(input_names[input_mode_state.selected_input])
-            end
+
+            input_mode_state.selected_param = util.clamp(input_mode_state.selected_param + d, 1, max_params)
         elseif grid_ui_state.grid_mode == 5 then
             -- Matrix mode: Navigate X position
             selected_matrix_pos.x = selected_matrix_pos.x + d
@@ -1231,91 +1332,71 @@ function enc(n, d)
         end
     elseif n == 3 then
         if grid_ui_state.grid_mode == 0 then
-            -- Inputs mode: Adjust parameter for selected input
+            -- Inputs mode: Adjust selected parameter (E3)
             if input_mode_state.selected_input == 1 then
                 -- Live: Audio In Level
                 local current = params:get("audio_in_level")
                 local new_val = util.clamp(current + d * 0.01, 0, 1)
                 params:set("audio_in_level", new_val)
                 store_snapshot(current_snapshot)
-                if params:get("info_banner") == 2 then
-                    info_banner_mod.show(string.format("Audio In: %.2f", new_val))
-                end
             elseif input_mode_state.selected_input == 2 then
-                -- Noise: Level, LFO Rate, LFO Depth (cycle with shift)
-                if grid_ui_state.shift_held then
-                    -- Shift: cycle parameter
-                    input_mode_state.selected_param = input_mode_state.selected_param + (d > 0 and 1 or -1)
-                    if input_mode_state.selected_param < 1 then
-                        input_mode_state.selected_param = 3
-                    elseif input_mode_state.selected_param > 3 then
-                        input_mode_state.selected_param = 1
-                    end
-                    local param_names = { "Level", "LFO Rate", "LFO Depth" }
-                    if params:get("info_banner") == 2 then
-                        info_banner_mod.show(param_names[input_mode_state.selected_param])
-                    end
-                else
-                    -- Normal: adjust selected parameter
-                    if input_mode_state.selected_param == 1 then
-                        local current = params:get("noise_level")
-                        local new_val = util.clamp(current + d * 0.01, 0, 1)
-                        params:set("noise_level", new_val)
-                        store_snapshot(current_snapshot)
-                        if params:get("info_banner") == 2 then
-                            info_banner_mod.show(string.format("Noise: %.2f", new_val))
-                        end
-                    elseif input_mode_state.selected_param == 2 then
-                        local current = params:get("noise_lfo_rate")
-                        local new_val = util.clamp(current + d * 0.5, 0, 20)
-                        params:set("noise_lfo_rate", new_val)
-                        store_snapshot(current_snapshot)
-                        if params:get("info_banner") == 2 then
-                            info_banner_mod.show(string.format("LFO Rate: %.1fHz", new_val))
-                        end
-                    elseif input_mode_state.selected_param == 3 then
-                        local current = params:get("noise_lfo_depth")
-                        local new_val = util.clamp(current + d * 0.01, 0, 1)
-                        params:set("noise_lfo_depth", new_val)
-                        store_snapshot(current_snapshot)
-                        if params:get("info_banner") == 2 then
-                            info_banner_mod.show(string.format("LFO Depth: %.0f%%", new_val * 100))
-                        end
-                    end
+                -- Osc: Adjust selected parameter
+                if input_mode_state.selected_param == 1 then
+                    local current = params:get("osc_level")
+                    local new_val = util.clamp(current + d * 0.01, 0, 1)
+                    params:set("osc_level", new_val)
+                    store_snapshot(current_snapshot)
+                elseif input_mode_state.selected_param == 2 then
+                    local current = params:get("osc_freq")
+                    local new_val = util.clamp(current * math.exp(d * 0.05), 0.1, 2000)
+                    params:set("osc_freq", new_val)
+                    store_snapshot(current_snapshot)
+                elseif input_mode_state.selected_param == 3 then
+                    local current = params:get("osc_timbre")
+                    local new_val = util.clamp(current + d * 0.01, 0, 1)
+                    params:set("osc_timbre", new_val)
+                    store_snapshot(current_snapshot)
+                elseif input_mode_state.selected_param == 4 then
+                    local current = params:get("osc_warp")
+                    local new_val = util.clamp(current + d * 0.01, 0, 1)
+                    params:set("osc_warp", new_val)
+                    store_snapshot(current_snapshot)
+                elseif input_mode_state.selected_param == 5 then
+                    local current = params:get("osc_mod_rate")
+                    local new_val = util.clamp(current * math.exp(d * 0.05), 0.1, 100)
+                    params:set("osc_mod_rate", new_val)
+                    store_snapshot(current_snapshot)
                 end
             elseif input_mode_state.selected_input == 3 then
-                -- Dust: Level, Density (cycle with shift)
-                if grid_ui_state.shift_held then
-                    -- Shift: cycle parameter
-                    input_mode_state.selected_param = input_mode_state.selected_param + (d > 0 and 1 or -1)
-                    if input_mode_state.selected_param < 1 then
-                        input_mode_state.selected_param = 2
-                    elseif input_mode_state.selected_param > 2 then
-                        input_mode_state.selected_param = 1
-                    end
-                    local param_names = { "Level", "Density" }
-                    if params:get("info_banner") == 2 then
-                        info_banner_mod.show(param_names[input_mode_state.selected_param])
-                    end
-                else
-                    -- Normal: adjust selected parameter
-                    if input_mode_state.selected_param == 1 then
-                        local current = params:get("dust_level")
-                        local new_val = util.clamp(current + d * 0.01, 0, 1)
-                        params:set("dust_level", new_val)
-                        store_snapshot(current_snapshot)
-                        if params:get("info_banner") == 2 then
-                            info_banner_mod.show(string.format("Dust: %.2f", new_val))
-                        end
-                    elseif input_mode_state.selected_param == 2 then
-                        local current = params:get("dust_density")
-                        local new_val = util.clamp(current + d * 10, 1, 1000)
-                        params:set("dust_density", new_val)
-                        store_snapshot(current_snapshot)
-                        if params:get("info_banner") == 2 then
-                            info_banner_mod.show(string.format("Dust Dens: %dHz", new_val))
-                        end
-                    end
+                -- Dust: Adjust selected parameter
+                if input_mode_state.selected_param == 1 then
+                    local current = params:get("dust_level")
+                    local new_val = util.clamp(current + d * 0.01, 0, 1)
+                    params:set("dust_level", new_val)
+                    store_snapshot(current_snapshot)
+                elseif input_mode_state.selected_param == 2 then
+                    local current = params:get("dust_density")
+                    local new_val = util.clamp(current + d * 10, 1, 1000)
+                    params:set("dust_density", new_val)
+                    store_snapshot(current_snapshot)
+                end
+            elseif input_mode_state.selected_input == 4 then
+                -- Noise: Adjust selected parameter
+                if input_mode_state.selected_param == 1 then
+                    local current = params:get("noise_level")
+                    local new_val = util.clamp(current + d * 0.01, 0, 1)
+                    params:set("noise_level", new_val)
+                    store_snapshot(current_snapshot)
+                elseif input_mode_state.selected_param == 2 then
+                    local current = params:get("noise_lfo_rate")
+                    local new_val = util.clamp(current + d * 0.5, 0, 20)
+                    params:set("noise_lfo_rate", new_val)
+                    store_snapshot(current_snapshot)
+                elseif input_mode_state.selected_param == 3 then
+                    local current = params:get("noise_lfo_depth")
+                    local new_val = util.clamp(current + d * 0.01, 0, 1)
+                    params:set("noise_lfo_depth", new_val)
+                    store_snapshot(current_snapshot)
                 end
             end
         elseif grid_ui_state.grid_mode == 5 then
@@ -1422,7 +1503,7 @@ function add_params()
     -- Current state is now managed by the params system
 
     -- global controls
-    params:add_group("global", 10)
+    params:add_group("global", 16)
     params:add {
         type = "control",
         id = "q",
@@ -1537,7 +1618,74 @@ function add_params()
         end
     }
 
+    params:add {
+        type = "control",
+        id = "osc_level",
+        name = "Osc Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end,
+        action = function(level)
+            if engine and engine.osc_level then engine.osc_level(level) end
+        end
+    }
+
+    params:add {
+        type = "control",
+        id = "osc_freq",
+        name = "Osc Freq",
+        controlspec = controlspec.new(0.1, 2000, 'exp', 0, 220, 'Hz'),
+        formatter = function(p) return string.format("%.2f Hz", p:get()) end,
+        action = function(freq)
+            if engine and engine.osc_freq then engine.osc_freq(freq) end
+        end
+    }
+
+    params:add {
+        type = "control",
+        id = "osc_timbre",
+        name = "Osc Timbre",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.3),
+        formatter = function(p) return string.format("%.2f", p:get()) end,
+        action = function(timbre)
+            if engine and engine.osc_timbre then engine.osc_timbre(timbre) end
+        end
+    }
+
+    params:add {
+        type = "control",
+        id = "osc_warp",
+        name = "Osc Morph",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end,
+        action = function(warp)
+            if engine and engine.osc_warp then engine.osc_warp(warp) end
+        end
+    }
+
+    params:add {
+        type = "control",
+        id = "osc_mod_rate",
+        name = "Osc Mod Rate",
+        controlspec = controlspec.new(0.1, 100, 'exp', 0.1, 5.0, 'Hz'),
+        formatter = function(p) return string.format("%.1f Hz", p:get()) end,
+        action = function(rate)
+            if engine and engine.osc_mod_rate then engine.osc_mod_rate(rate) end
+        end
+    }
+
+    params:add {
+        type = "control",
+        id = "osc_mod_depth",
+        name = "Osc Mod Depth",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end,
+        action = function(depth)
+            if engine and engine.osc_mod_depth then engine.osc_mod_depth(depth) end
+        end
+    }
+
     -- Individual band parameters for current state (hidden from UI)
+    params:add_group("bands", num * 4)
     for i = 1, num do
         params:add {
             type = "control",
@@ -1545,7 +1693,6 @@ function add_params()
             name = string.format("Band %02d Level", i),
             controlspec = controlspec.new(-60, 12, 'lin', 0.1, -12, 'dB'),
             formatter = function(p) return string.format("%.1f dB", p:get()) end,
-            hidden = true,
             action = function(level)
                 if engine and engine.level then engine.level(i, level) end
             end
@@ -1556,7 +1703,6 @@ function add_params()
             name = string.format("Band %02d Pan", i),
             controlspec = controlspec.new(-1, 1, 'lin', 0.01, 0),
             formatter = function(p) return string.format("%.2f", p:get()) end,
-            hidden = true,
             action = function(pan)
                 if engine and engine.pan then engine.pan(i, pan) end
             end
@@ -1567,7 +1713,6 @@ function add_params()
             name = string.format("Band %02d Thresh", i),
             controlspec = controlspec.new(0, 0.2, 'lin', 0.001, 0),
             formatter = function(p) return string.format("%.3f", p:get()) end,
-            hidden = true,
             action = function(thresh)
                 if engine and engine.thresh_band then engine.thresh_band(i, thresh) end
             end
@@ -1578,7 +1723,6 @@ function add_params()
             name = string.format("Band %02d Decimate", i),
             controlspec = controlspec.new(100, 48000, 'exp', 1, 48000, 'Hz'),
             formatter = function(p) return string.format("%.0f Hz", p:get()) end,
-            hidden = true,
             action = function(rate)
                 if engine and engine.decimate_band then engine.decimate_band(i, rate) end
             end
@@ -1587,7 +1731,7 @@ function add_params()
 
     -- Add snapshot parameters for persistence
     -- Snapshot A
-    params:add_group("snapshot A", 71)
+    params:add_group("snapshot A", 77)
     params:add {
         type = "control",
         id = "snapshot_a_q",
@@ -1646,6 +1790,48 @@ function add_params()
         controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
+    params:add {
+        type = "control",
+        id = "snapshot_a_osc_level",
+        name = "Osc Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_a_osc_freq",
+        name = "Osc Freq",
+        controlspec = controlspec.new(0.1, 2000, 'exp', 0, 220, 'Hz'),
+        formatter = function(p) return string.format("%.2f Hz", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_a_osc_timbre",
+        name = "Osc Timbre",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.3),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_a_osc_warp",
+        name = "Osc Morph",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_a_osc_mod_rate",
+        name = "Osc Mod Rate",
+        controlspec = controlspec.new(0.1, 100, 'exp', 0.1, 5.0, 'Hz'),
+        formatter = function(p) return string.format("%.1f Hz", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_a_osc_mod_depth",
+        name = "Osc Mod Depth",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
 
     for i = 1, num do
         local hz = freqs[i]
@@ -1680,7 +1866,7 @@ function add_params()
     end
 
     -- Snapshot B
-    params:add_group("snapshot B", 71)
+    params:add_group("snapshot B", 77)
     params:add {
         type = "control",
         id = "snapshot_b_q",
@@ -1739,6 +1925,48 @@ function add_params()
         controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
+    params:add {
+        type = "control",
+        id = "snapshot_b_osc_level",
+        name = "Osc Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_b_osc_freq",
+        name = "Osc Freq",
+        controlspec = controlspec.new(0.1, 2000, 'exp', 0, 220, 'Hz'),
+        formatter = function(p) return string.format("%.2f Hz", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_b_osc_timbre",
+        name = "Osc Timbre",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.3),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_b_osc_warp",
+        name = "Osc Morph",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_b_osc_mod_rate",
+        name = "Osc Mod Rate",
+        controlspec = controlspec.new(0.1, 100, 'exp', 0.1, 5.0, 'Hz'),
+        formatter = function(p) return string.format("%.1f Hz", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_b_osc_mod_depth",
+        name = "Osc Mod Depth",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
 
     for i = 1, num do
         local hz = freqs[i]
@@ -1773,7 +2001,7 @@ function add_params()
     end
 
     -- Snapshot C
-    params:add_group("snapshot C", 71)
+    params:add_group("snapshot C", 77)
     params:add {
         type = "control",
         id = "snapshot_c_q",
@@ -1832,6 +2060,48 @@ function add_params()
         controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
+    params:add {
+        type = "control",
+        id = "snapshot_c_osc_level",
+        name = "Osc Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_c_osc_freq",
+        name = "Osc Freq",
+        controlspec = controlspec.new(0.1, 2000, 'exp', 0, 220, 'Hz'),
+        formatter = function(p) return string.format("%.2f Hz", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_c_osc_timbre",
+        name = "Osc Timbre",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.3),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_c_osc_warp",
+        name = "Osc Morph",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_c_osc_mod_rate",
+        name = "Osc Mod Rate",
+        controlspec = controlspec.new(0.1, 100, 'exp', 0.1, 5.0, 'Hz'),
+        formatter = function(p) return string.format("%.1f Hz", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_c_osc_mod_depth",
+        name = "Osc Mod Depth",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
 
     for i = 1, num do
         local hz = freqs[i]
@@ -1866,7 +2136,7 @@ function add_params()
     end
 
     -- Snapshot D
-    params:add_group("snapshot D", 71)
+    params:add_group("snapshot D", 77)
     params:add {
         type = "control",
         id = "snapshot_d_q",
@@ -1924,6 +2194,48 @@ function add_params()
         name = "Dust Density",
         controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_d_osc_level",
+        name = "Osc Level",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_d_osc_freq",
+        name = "Osc Freq",
+        controlspec = controlspec.new(0.1, 2000, 'exp', 0, 220, 'Hz'),
+        formatter = function(p) return string.format("%.2f Hz", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_d_osc_timbre",
+        name = "Osc Timbre",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.3),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_d_osc_warp",
+        name = "Osc Morph",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_d_osc_mod_rate",
+        name = "Osc Mod Rate",
+        controlspec = controlspec.new(0.1, 100, 'exp', 0.1, 5.0, 'Hz'),
+        formatter = function(p) return string.format("%.1f Hz", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_d_osc_mod_depth",
+        name = "Osc Mod Depth",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.2f", p:get()) end
     }
 
     for i = 1, num do

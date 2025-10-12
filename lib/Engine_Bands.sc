@@ -6,30 +6,109 @@ Engine_Bands : CroneEngine {
     alloc {
         var freqs;
         
-        // Input source synth - blendable between audio in, noise, and dust
-        SynthDef(\inputSource, { |outBus = 0, audioInLevel = 1.0, noiseLevel = 0.1, dustLevel = 0.0, dustDensity = 10, noiseLfoRate = 0, noiseLfoDepth = 1.0|
-            var sig, audioIn, noise, dust, noiseLfo, lfoMin;
+        // Audio input source - live audio in
+        SynthDef(\audioInSource, { |outBus = 0, level = 1.0|
+            var sig;
+            sig = SoundIn.ar([0, 1]);  // Stereo audio input
+            Out.ar(outBus, sig * level);
+        }).add;
+        
+        // Noise source - pink noise with optional LFO modulation
+        SynthDef(\noiseSource, { |outBus = 0, level = 0.1, lfoRate = 0, lfoDepth = 1.0|
+            var sig, noiseLfo, lfoMin;
             
-            // Generate all three source types
-            audioIn = SoundIn.ar([0, 1]);  // Stereo audio input
-            
-            // Pink noise with optional LFO modulation
             // Depth controls how deep the LFO goes (0.0 = no modulation, 1.0 = full range)
-            lfoMin = 1.0 - noiseLfoDepth;  // Calculate minimum level based on depth
-            noiseLfo = Select.kr(noiseLfoRate > 0, [
+            lfoMin = 1.0 - lfoDepth;  // Calculate minimum level based on depth
+            noiseLfo = Select.kr(lfoRate > 0, [
                 1.0,  // No LFO when rate is 0
-                LFTri.kr(noiseLfoRate).range(lfoMin, 1.0)  // LFO with variable depth
+                LFTri.kr(lfoRate).range(lfoMin, 1.0)  // LFO with variable depth
             ]);
-            noise = PinkNoise.ar([noiseLevel * 0.5 * noiseLfo, noiseLevel * noiseLfo]);
             
-            // Musical dust - random impulses with resonant filtering
-            dust = Dust2.ar([dustDensity, dustDensity]);  // Bipolar impulses (more dynamic)    
-            dust = dust * 0.3;  // Scale down after resonance boost
+            sig = PinkNoise.ar([level * 0.5 * noiseLfo, level * noiseLfo]);
             
-            // Blend all three sources with individual level controls
-            sig = (audioIn * audioInLevel) + (noise * Lag.kr(noiseLevel > 0, 0.5)) + (dust * Lag.kr(dustLevel, 0.5));
+            // Smooth level changes to avoid clicks
+            Out.ar(outBus, sig * Lag.kr(level > 0, 0.5));
+        }).add;
+        
+        // Dust source - random impulses
+        SynthDef(\dustSource, { |outBus = 0, level = 0.0, density = 10|
+            var sig;
             
-            Out.ar(outBus, sig);
+            // Bipolar impulses (more dynamic)
+            sig = Dust2.ar([density, density]);
+            sig = sig * 0.3;  // Scale down
+            
+            // Smooth level changes to avoid clicks
+            Out.ar(outBus, sig * level * Lag.kr(level > 0, 0.5));
+        }).add;
+        
+        // Complex oscillator source - inspired by Buchla 259e "Twisted Waveform Generator"
+        SynthDef(\oscSource, { |outBus = 0, level = 0.0, freq = 220, timbre = 0.5, warp = 0.5, modRate = 5.0, modDepth = 0.0|
+            var sig, phase, sine, triangle, square, modulator, modulatedFreq;
+            var shaped1, shaped2, shaped3, morphed, warped;
+            var harmonic1, harmonic2, harmonic3;
+            
+            // Frequency with smooth lag for glide
+            freq = Lag.kr(freq, 0.05);
+            
+            // Internal modulation oscillator (259e's modulation oscillator)
+            // Through-zero linear FM capability
+            modulator = SinOsc.ar(modRate) * modDepth * freq;
+            modulatedFreq = freq + modulator;
+            
+            // Generate multiple waveforms simultaneously (like 259e's multiple outputs)
+            phase = Phasor.ar(0, modulatedFreq / SampleRate.ir, 0, 1);
+            sine = SinOsc.ar(modulatedFreq);
+            triangle = LFTri.ar(modulatedFreq);
+            square = LFPulse.ar(modulatedFreq, 0, 0.5) * 2 - 1;
+            
+            // Multiple waveshaping tables (259e's selectable wavetables)
+            // Table 1: Classic wavefolder (Serge-style)
+            shaped1 = (sine * (1 + (timbre * 5))).fold2(1.0);
+            
+            // Table 2: Chebyshev waveshaping (adds specific harmonics)
+            shaped2 = sine + (sine.squared * 0.5 * timbre) + (sine.cubed * 0.33 * timbre);
+            shaped2 = shaped2.tanh;  // Soft clipping
+            
+            // Table 3: West Coast wavefolding with asymmetry
+            shaped3 = (sine * (1 + (timbre * 4))).wrap2(1.0).fold2(0.8);
+            
+            // Morph parameter: blend between waveshaping tables
+            // warp controls which tables are blended
+            morphed = Select.ar(warp.clip(0, 0.999) * 2.999, [
+                shaped1,  // 0.0 - 0.33: Table 1
+                shaped2,  // 0.33 - 0.66: Table 2  
+                shaped3   // 0.66 - 1.0: Table 3
+            ]);
+            
+            // Add blend between adjacent tables for smooth morphing
+            morphed = SelectX.ar(warp.clip(0, 0.999) * 2.999, [shaped1, shaped2, shaped3]);
+            
+            // Mix in raw waveforms for additional harmonic content
+            // Lower timbre = more pure waveforms, higher = more waveshaped
+            harmonic1 = (triangle * (1 - timbre)) + (morphed * timbre);
+            
+            // Add subtle harmonics from modulation interaction
+            harmonic2 = SinOsc.ar(modulatedFreq * 2, harmonic1 * timbre) * 0.2;
+            harmonic3 = SinOsc.ar(modulatedFreq * 3, harmonic1 * timbre * 0.5) * 0.1;
+            
+            // Combine for rich harmonic content
+            sig = harmonic1 + harmonic2 + harmonic3;
+            
+            // Add subtle pulse width modulation for movement
+            sig = sig + (square * LFTri.kr(0.1).range(0, 0.15) * timbre * 0.3);
+            
+            // Final waveshaping stage (259e's output stage)
+            warped = (sig * (1 + warp)).tanh * 0.8;
+            
+            // Stereo imaging with phase offset (259e's stereo outputs)
+            sig = [warped, DelayN.ar(warped, 0.01, SinOsc.kr(0.23).range(0.0005, 0.002))];
+            
+            // Add subtle stereo width modulation
+            sig = sig * [1.0, 1.0 + (LFNoise1.kr(0.5) * 0.05)];
+            
+            // Output with level control and smooth fading
+            Out.ar(outBus, sig * level * Lag.kr(level > 0, 0.5) * 0.6);
         }).add;
         
         // Final limiter synth for summed output
@@ -108,18 +187,48 @@ Engine_Bands : CroneEngine {
         
         ~bandGroup = Group.head(context.xg);
         
-        // Create input source synth at the head of the group
-        ~inputSource = Synth.head(
+        // Create three separate input source synths at the head of the group
+        ~audioInSource = Synth.head(
             ~bandGroup,
-            \inputSource,
+            \audioInSource,
             [
                 \outBus, ~inputBus,
-                \audioInLevel, 1.0,  // Audio input on by default
-                \noiseLevel, 0.1,
-                \dustLevel, 0.0,  // Dust off by default
-                \dustDensity, 10,
-                \noiseLfoRate, 0,
-                \noiseLfoDepth, 1.0
+                \level, 1.0  // Audio input on by default
+            ]
+        );
+        
+        ~noiseSource = Synth.after(
+            ~audioInSource,
+            \noiseSource,
+            [
+                \outBus, ~inputBus,
+                \level, 0.0,
+                \lfoRate, 0,
+                \lfoDepth, 1.0
+            ]
+        );
+        
+        ~dustSource = Synth.after(
+            ~noiseSource,
+            \dustSource,
+            [
+                \outBus, ~inputBus,
+                \level, 0.0,
+                \density, 10
+            ]
+        );
+        
+        ~oscSource = Synth.after(
+            ~dustSource,
+            \oscSource,
+            [
+                \outBus, ~inputBus,
+                \level, 0.0,
+                \freq, 220,
+                \timbre, 0.3,
+                \warp, 0.0,
+                \modRate, 5.0,
+                \modDepth, 0.0
             ]
         );
         ~bands = freqs.collect { |f, i|
@@ -219,25 +328,44 @@ Engine_Bands : CroneEngine {
             };
         });
         
-        // set input source type (0=audio in, 1=noise, 2=dust) - for compatibility
+        // set input source type (0=audio in, 1=noise, 2=dust, 3=osc) - for compatibility
         // This sets one source to 1.0 and others to 0
         this.addCommand("input_source", "i", { arg msg;
             var sourceType;
-            sourceType = msg[1].clip(0, 2);
-            if(~inputSource.notNil) {
-                case
-                    { sourceType == 0 } { ~inputSource.set(\audioInLevel, 1.0, \noiseLevel, 0.0, \dustLevel, 0.0); }
-                    { sourceType == 1 } { ~inputSource.set(\audioInLevel, 0.0, \noiseLevel, 0.1, \dustLevel, 0.0); }
-                    { sourceType == 2 } { ~inputSource.set(\audioInLevel, 0.0, \noiseLevel, 0.0, \dustLevel, 1.0); };
-            };
+            sourceType = msg[1].clip(0, 3);
+            case
+                { sourceType == 0 } { 
+                    if(~audioInSource.notNil) { ~audioInSource.set(\level, 1.0); };
+                    if(~noiseSource.notNil) { ~noiseSource.set(\level, 0.0); };
+                    if(~dustSource.notNil) { ~dustSource.set(\level, 0.0); };
+                    if(~oscSource.notNil) { ~oscSource.set(\level, 0.0); };
+                }
+                { sourceType == 1 } { 
+                    if(~audioInSource.notNil) { ~audioInSource.set(\level, 0.0); };
+                    if(~noiseSource.notNil) { ~noiseSource.set(\level, 0.1); };
+                    if(~dustSource.notNil) { ~dustSource.set(\level, 0.0); };
+                    if(~oscSource.notNil) { ~oscSource.set(\level, 0.0); };
+                }
+                { sourceType == 2 } { 
+                    if(~audioInSource.notNil) { ~audioInSource.set(\level, 0.0); };
+                    if(~noiseSource.notNil) { ~noiseSource.set(\level, 0.0); };
+                    if(~dustSource.notNil) { ~dustSource.set(\level, 1.0); };
+                    if(~oscSource.notNil) { ~oscSource.set(\level, 0.0); };
+                }
+                { sourceType == 3 } { 
+                    if(~audioInSource.notNil) { ~audioInSource.set(\level, 0.0); };
+                    if(~noiseSource.notNil) { ~noiseSource.set(\level, 0.0); };
+                    if(~dustSource.notNil) { ~dustSource.set(\level, 0.0); };
+                    if(~oscSource.notNil) { ~oscSource.set(\level, 1.0); };
+                };
         });
         
         // set audio input level (0.0 to 1.0)
         this.addCommand("audio_in_level", "f", { arg msg;
             var level;
             level = msg[1].clip(0.0, 1.0);
-            if(~inputSource.notNil) {
-                ~inputSource.set(\audioInLevel, level);
+            if(~audioInSource.notNil) {
+                ~audioInSource.set(\level, level);
             };
         });
         
@@ -245,8 +373,8 @@ Engine_Bands : CroneEngine {
         this.addCommand("noise_level", "f", { arg msg;
             var level;
             level = msg[1].clip(0.0, 1.0);
-            if(~inputSource.notNil) {
-                ~inputSource.set(\noiseLevel, level);
+            if(~noiseSource.notNil) {
+                ~noiseSource.set(\level, level);
             };
         });
         
@@ -254,8 +382,8 @@ Engine_Bands : CroneEngine {
         this.addCommand("dust_level", "f", { arg msg;
             var level;
             level = msg[1].clip(0.0, 1.0);
-            if(~inputSource.notNil) {
-                ~inputSource.set(\dustLevel, level);
+            if(~dustSource.notNil) {
+                ~dustSource.set(\level, level);
             };
         });
         
@@ -263,8 +391,8 @@ Engine_Bands : CroneEngine {
         this.addCommand("dust_density", "f", { arg msg;
             var density;
             density = msg[1].clip(1, 1000);
-            if(~inputSource.notNil) {
-                ~inputSource.set(\dustDensity, density);
+            if(~dustSource.notNil) {
+                ~dustSource.set(\density, density);
             };
         });
         
@@ -272,8 +400,8 @@ Engine_Bands : CroneEngine {
         this.addCommand("noise_lfo_rate", "f", { arg msg;
             var rate;
             rate = msg[1].clip(0, 20);
-            if(~inputSource.notNil) {
-                ~inputSource.set(\noiseLfoRate, rate);
+            if(~noiseSource.notNil) {
+                ~noiseSource.set(\lfoRate, rate);
             };
         });
         
@@ -281,8 +409,64 @@ Engine_Bands : CroneEngine {
         this.addCommand("noise_lfo_depth", "f", { arg msg;
             var depth;
             depth = msg[1].clip(0.0, 1.0);
-            if(~inputSource.notNil) {
-                ~inputSource.set(\noiseLfoDepth, depth);
+            if(~noiseSource.notNil) {
+                ~noiseSource.set(\lfoDepth, depth);
+            };
+        });
+        
+        // set oscillator level (0.0 to 1.0)
+        this.addCommand("osc_level", "f", { arg msg;
+            var level;
+            level = msg[1].clip(0.0, 1.0);
+            if(~oscSource.notNil) {
+                ~oscSource.set(\level, level);
+            };
+        });
+        
+        // set oscillator frequency (0.1 to 2000 Hz)
+        this.addCommand("osc_freq", "f", { arg msg;
+            var freq;
+            freq = msg[1].clip(0.1, 2000);
+            if(~oscSource.notNil) {
+                ~oscSource.set(\freq, freq);
+            };
+        });
+        
+        // set oscillator timbre (0.0 to 1.0) - waveshaping intensity & harmonic content
+        // Low values: purer tones, High values: complex waveshaped harmonics
+        this.addCommand("osc_timbre", "f", { arg msg;
+            var timbre;
+            timbre = msg[1].clip(0.0, 1.0);
+            if(~oscSource.notNil) {
+                ~oscSource.set(\timbre, timbre);
+            };
+        });
+        
+        // set oscillator morph (0.0 to 1.0) - morphs between 3 waveshaping tables
+        // 0.0-0.33: Serge folder, 0.33-0.66: Chebyshev, 0.66-1.0: West Coast asymmetric
+        this.addCommand("osc_warp", "f", { arg msg;
+            var warp;
+            warp = msg[1].clip(0.0, 1.0);
+            if(~oscSource.notNil) {
+                ~oscSource.set(\warp, warp);
+            };
+        });
+        
+        // set oscillator modulation rate (0.1 to 100 Hz) - internal FM oscillator frequency
+        this.addCommand("osc_mod_rate", "f", { arg msg;
+            var rate;
+            rate = msg[1].clip(0.1, 100);
+            if(~oscSource.notNil) {
+                ~oscSource.set(\modRate, rate);
+            };
+        });
+        
+        // set oscillator modulation depth (0.0 to 1.0) - through-zero linear FM amount
+        this.addCommand("osc_mod_depth", "f", { arg msg;
+            var depth;
+            depth = msg[1].clip(0.0, 1.0);
+            if(~oscSource.notNil) {
+                ~oscSource.set(\modDepth, depth);
             };
         });
     }
@@ -290,7 +474,10 @@ Engine_Bands : CroneEngine {
     // ---- Teardown ------------------------------------------------------------
     free {
         if(~finalLimiter.notNil) { ~finalLimiter.free; ~finalLimiter = nil; };
-        if(~inputSource.notNil) { ~inputSource.free; ~inputSource = nil; };
+        if(~audioInSource.notNil) { ~audioInSource.free; ~audioInSource = nil; };
+        if(~noiseSource.notNil) { ~noiseSource.free; ~noiseSource = nil; };
+        if(~dustSource.notNil) { ~dustSource.free; ~dustSource = nil; };
+        if(~oscSource.notNil) { ~oscSource.free; ~oscSource = nil; };
         if(~bands.notNil) { ~bands.do({ |x| x.free }); ~bands = nil; };
         if(~bandGroup.notNil) { ~bandGroup.free; ~bandGroup = nil; };
         if(~sumBus.notNil) { ~sumBus.free; ~sumBus = nil; };
