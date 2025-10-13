@@ -243,6 +243,10 @@ Engine_Bands : CroneEngine {
             Out.ar(outBus, outSig);
         }).add;
 
+        // CRITICAL: Wait for all SynthDefs to be compiled before creating synths
+        // This prevents clicks on script load
+        context.server.sync;
+
         freqs = [
             80, 150, 250, 350, 500, 630, 800, 1000,
             1300, 1600, 2000, 2600, 3500, 5000, 8000, 12000
@@ -263,6 +267,9 @@ Engine_Bands : CroneEngine {
         // Create a buffer for file playback (initially empty)
         ~fileBuffer = Buffer.alloc(context.server, context.server.sampleRate * 2, 2); // 2 seconds, stereo
         
+        // Wait for buffer allocation to complete
+        context.server.sync;
+        
         ~bandGroup = Group.head(context.xg);
         
         // Create three separate input source synths at the head of the group
@@ -271,7 +278,7 @@ Engine_Bands : CroneEngine {
             \audioInSource,
             [
                 \outBus, ~inputBus,
-                \level, 1.0  // Audio input on by default
+                \level, 1.0  // Params will override this after server.sync
             ]
         );
         

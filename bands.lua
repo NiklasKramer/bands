@@ -643,11 +643,17 @@ function init()
 
     -- setup parameters
     add_params()
-    params:bang()
 
-    -- initialize current state and snapshots
-    init_current_state()
-    init_snapshots()
+    -- Delay params:bang() to allow engine to fully initialize
+    -- This prevents clicks on script load
+    clock.run(function()
+        clock.sleep(0.1) -- Wait 100ms for engine initialization
+        params:bang()
+
+        -- initialize current state and snapshots after params are loaded
+        init_current_state()
+        init_snapshots()
+    end)
 
     -- setup grid UI
     grid_ui_state = grid_ui.init(grid_device, freqs, mode_names)
@@ -1949,7 +1955,7 @@ function add_params()
         type = "control",
         id = "audio_in_level",
         name = "Level",
-        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0), -- Default 1.0 (server.sync prevents clicks)
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(level)
             if engine and engine.audio_in_level then engine.audio_in_level(level) end
