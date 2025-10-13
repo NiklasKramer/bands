@@ -88,6 +88,9 @@ local snapshots = {
 }
 local current_snapshot = "A"
 
+-- Clipboard for copy/paste
+local clipboard = nil
+
 -- Initialize current state from the current snapshot
 -- Wrapper functions for snapshot module
 local function init_current_state()
@@ -108,6 +111,110 @@ end
 
 local function recall_snapshot(snapshot_name)
     snapshot_mod.recall_snapshot(snapshot_name, params, freqs)
+end
+
+-- Copy current state to clipboard
+local function copy_snapshot()
+    clipboard = {}
+
+    -- Copy global parameters
+    clipboard.q = params:get("q")
+
+    -- Copy input settings
+    clipboard.audio_in_level = params:get("audio_in_level")
+    clipboard.noise_level = params:get("noise_level")
+    clipboard.dust_level = params:get("dust_level")
+    clipboard.noise_lfo_rate = params:get("noise_lfo_rate")
+    clipboard.noise_lfo_depth = params:get("noise_lfo_depth")
+    clipboard.dust_density = params:get("dust_density")
+    clipboard.osc_level = params:get("osc_level")
+    clipboard.osc_freq = params:get("osc_freq")
+    clipboard.osc_timbre = params:get("osc_timbre")
+    clipboard.osc_warp = params:get("osc_warp")
+    clipboard.osc_mod_rate = params:get("osc_mod_rate")
+    clipboard.osc_mod_depth = params:get("osc_mod_depth")
+    clipboard.file_level = params:get("file_level")
+    clipboard.file_speed = params:get("file_speed")
+
+    -- Copy effect settings
+    clipboard.delay_time = params:get("delay_time")
+    clipboard.delay_feedback = params:get("delay_feedback")
+    clipboard.delay_mix = params:get("delay_mix")
+    clipboard.delay_width = params:get("delay_width")
+    clipboard.eq_low_cut = params:get("eq_low_cut")
+    clipboard.eq_high_cut = params:get("eq_high_cut")
+    clipboard.eq_low_gain = params:get("eq_low_gain")
+    clipboard.eq_mid_gain = params:get("eq_mid_gain")
+    clipboard.eq_high_gain = params:get("eq_high_gain")
+
+    -- Copy band settings
+    for i = 1, #freqs do
+        clipboard["band_" .. i .. "_level"] = params:get(string.format("band_%02d_level", i))
+        clipboard["band_" .. i .. "_pan"] = params:get(string.format("band_%02d_pan", i))
+        clipboard["band_" .. i .. "_thresh"] = params:get(string.format("band_%02d_thresh", i))
+        clipboard["band_" .. i .. "_decimate"] = params:get(string.format("band_%02d_decimate", i))
+    end
+
+    -- Show banner
+    if params:get("info_banner") == 2 then
+        info_banner_mod.show("COPIED")
+    end
+end
+
+-- Paste clipboard to current state
+local function paste_snapshot()
+    if clipboard == nil then
+        if params:get("info_banner") == 2 then
+            info_banner_mod.show("NOTHING TO PASTE")
+        end
+        return
+    end
+
+    -- Paste global parameters
+    params:set("q", clipboard.q)
+
+    -- Paste input settings
+    params:set("audio_in_level", clipboard.audio_in_level)
+    params:set("noise_level", clipboard.noise_level)
+    params:set("dust_level", clipboard.dust_level)
+    params:set("noise_lfo_rate", clipboard.noise_lfo_rate)
+    params:set("noise_lfo_depth", clipboard.noise_lfo_depth)
+    params:set("dust_density", clipboard.dust_density)
+    params:set("osc_level", clipboard.osc_level)
+    params:set("osc_freq", clipboard.osc_freq)
+    params:set("osc_timbre", clipboard.osc_timbre)
+    params:set("osc_warp", clipboard.osc_warp)
+    params:set("osc_mod_rate", clipboard.osc_mod_rate)
+    params:set("osc_mod_depth", clipboard.osc_mod_depth)
+    params:set("file_level", clipboard.file_level)
+    params:set("file_speed", clipboard.file_speed)
+
+    -- Paste effect settings
+    params:set("delay_time", clipboard.delay_time)
+    params:set("delay_feedback", clipboard.delay_feedback)
+    params:set("delay_mix", clipboard.delay_mix)
+    params:set("delay_width", clipboard.delay_width)
+    params:set("eq_low_cut", clipboard.eq_low_cut)
+    params:set("eq_high_cut", clipboard.eq_high_cut)
+    params:set("eq_low_gain", clipboard.eq_low_gain)
+    params:set("eq_mid_gain", clipboard.eq_mid_gain)
+    params:set("eq_high_gain", clipboard.eq_high_gain)
+
+    -- Paste band settings
+    for i = 1, #freqs do
+        params:set(string.format("band_%02d_level", i), clipboard["band_" .. i .. "_level"])
+        params:set(string.format("band_%02d_pan", i), clipboard["band_" .. i .. "_pan"])
+        params:set(string.format("band_%02d_thresh", i), clipboard["band_" .. i .. "_thresh"])
+        params:set(string.format("band_%02d_decimate", i), clipboard["band_" .. i .. "_decimate"])
+    end
+
+    -- Save to current snapshot
+    store_snapshot(current_snapshot)
+
+    -- Show banner
+    if params:get("info_banner") == 2 then
+        info_banner_mod.show("PASTED")
+    end
 end
 
 -- Calculate blend weights for matrix position
@@ -1329,8 +1436,10 @@ function key(n, z)
         end
     elseif z == 1 then -- Key press (not release)
         if n == 2 then
-            -- Key 2: Context-dependent action
-            if grid_ui_state.grid_mode == 0 then
+            -- Key 2: Copy snapshot (with shift) or context-dependent action
+            if grid_ui_state.shift_held then
+                copy_snapshot()
+            elseif grid_ui_state.grid_mode == 0 then
                 -- Inputs mode: Previous input type
                 input_mode_state.selected_input = util.clamp(input_mode_state.selected_input - 1, 1, 5)
                 input_mode_state.selected_param = 1 -- Reset param selection
@@ -1386,8 +1495,10 @@ function key(n, z)
                 store_snapshot(current_snapshot)
             end
         elseif n == 3 then
-            -- Key 3: Context-dependent action
-            if grid_ui_state.grid_mode == 0 then
+            -- Key 3: Paste snapshot (with shift) or context-dependent action
+            if grid_ui_state.shift_held then
+                paste_snapshot()
+            elseif grid_ui_state.grid_mode == 0 then
                 -- Inputs mode: Next input type
                 input_mode_state.selected_input = util.clamp(input_mode_state.selected_input + 1, 1, 5)
                 input_mode_state.selected_param = 1 -- Reset param selection

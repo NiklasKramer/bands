@@ -59,6 +59,7 @@ The Buchla 296e Spectral Processor split incoming audio into 16 frequency bands,
 - **Matrix morphing**: Blend between all four snapshots using X/Y position
 - **Path recording**: Record and loop matrix movements for automation
 - **Glide**: Smooth parameter transitions when moving in the matrix
+- **Copy/Paste**: Copy and paste snapshots with Shift + Key 2/3 for quick parameter duplication
 
 ## Controls
 
@@ -83,16 +84,24 @@ The Buchla 296e Spectral Processor split incoming audio into 16 frequency bands,
 - In MATRIX: Navigate Y position
 - In MATRIX + Shift: Adjust glide time
 
+**Key 1**: Shift modifier
+
+- Hold to access alternate functions
+- Release to return to normal mode
+- Also activates LED on Grid key 16 when held
+
 **Key 2**:
 
 - In INPUTS/EFFECTS: Previous input/effect type
 - In MATRIX: Go to selected position
+- **Shift + Key 2**: Copy current snapshot to clipboard
 
 **Key 3**:
 
 - In INPUTS/EFFECTS: Next input/effect type
 - In band modes: Randomize current parameter across all bands
 - In MATRIX: Randomize matrix position
+- **Shift + Key 3**: Paste clipboard to current snapshot
 
 ### Grid
 
