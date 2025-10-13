@@ -1,6 +1,5 @@
--- luacheck: globals screen
--- norns script skeleton
--- load Engine Bands
+-- bands
+
 engine.name = "Bands"
 local grid_device = grid.connect()
 
