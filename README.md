@@ -1,6 +1,16 @@
 # bands
 
+**Version 0.5** - Ready for testing
+
 A spectral processing instrument for norns, inspired by the Buchla 296e Spectral Processor.
+
+## Installation
+
+In maiden's command line, enter:
+
+```
+;install https://github.com/NiklasKramer/bands
+```
 
 ## Overview
 
@@ -198,14 +208,13 @@ Mix → Delay → EQ → Limiter → Output
 
 Each band is independently processed before being mixed together and sent through the output effects chain.
 
+## Requirements
+
+- norns
+- grid (required for band control, matrix, and path recording)
+
 ## Credits
 
 Concept inspired by the Buchla 296e Spectral Processor.
 
-Script architecture uses norns libraries: params, controlspec, grid, screen, metro, util.
-
 Created with the assistance of Cursor IDE.
-
----
-
-_Part of the norns ecosystem. Requires a grid for full functionality._
