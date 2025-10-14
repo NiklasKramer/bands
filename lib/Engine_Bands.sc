@@ -7,7 +7,7 @@ Engine_Bands : CroneEngine {
         var freqs;
         
         // Audio input source - live audio in
-        SynthDef(\audioInSource, { |outBus = 0, level = 1.0|
+        SynthDef(\audioInSource, { |outBus = 0, level = 0.0|
             var sig;
             sig = SoundIn.ar([0, 1]);  // Stereo audio input
             Out.ar(outBus, sig * level);
@@ -132,7 +132,7 @@ Engine_Bands : CroneEngine {
             
             maxTime = 2.0;
             time = Lag.kr(time.clip(0.01, maxTime), 0.1);
-            feedback = Lag.kr(feedback.clip(0.0, 0.95), 0.1);
+            feedback = Lag.kr(feedback.clip(0.0, 1.5), 0.1);  // Allow extreme feedback up to 1.5
             mix = Lag.kr(mix.clip(0.0, 1.0), 0.1);
             width = Lag.kr(width.clip(0.0, 1.0), 0.1);
             
@@ -156,11 +156,11 @@ Engine_Bands : CroneEngine {
             var sig;
             sig = In.ar(inBus, 2);
             
-            lowCut = Lag.kr(lowCut.clip(20, 2000), 0.1);
-            highCut = Lag.kr(highCut.clip(1000, 20000), 0.1);
-            lowGain = Lag.kr(lowGain.clip(-24, 12), 0.1);
-            midGain = Lag.kr(midGain.clip(-24, 12), 0.1);
-            highGain = Lag.kr(highGain.clip(-24, 12), 0.1);
+            lowCut = Lag.kr(lowCut.clip(10, 5000), 0.1);    // More extreme range
+            highCut = Lag.kr(highCut.clip(500, 22000), 0.1);  // More extreme range
+            lowGain = Lag.kr(lowGain.clip(-48, 24), 0.1);   // More extreme boost/cut
+            midGain = Lag.kr(midGain.clip(-48, 24), 0.1);   // More extreme boost/cut
+            highGain = Lag.kr(highGain.clip(-48, 24), 0.1); // More extreme boost/cut
             
             // Apply filters in series for better interaction
             // High-pass filter (cuts lows below lowCut)
@@ -190,9 +190,12 @@ Engine_Bands : CroneEngine {
             Out.ar(outBus, sig);
         }).add;
         
-        SynthDef(\specBand, { |inBus = 0, outBus = 0, freq = 1000, q = 1.0, level = 0.0, pan = 0.0, meterBus = -1, ampAtk = 0.01, ampRel = 0.08, thresh = 1.0, decimateRate = 48000, decimateSmoothing = 1, filterType = 1|
-            var src, sig, gain, bwidth, meter, open, cutoff, dark, outSig, meter_db, meter_normalized, gate_level, gate_open;
+        SynthDef(\specBand, { |inBus = 0, outBus = 0, freq = 1000, q = 1.0, level = 0.0, pan = 0.0, meterBus = -1, ampAtk = 0.01, ampRel = 0.08, thresh = 1.0, decimateRate = 48000, decimateSmoothing = 1, filterType = 1, gate = 1|
+            var src, sig, gain, bwidth, meter, open, cutoff, dark, outSig, meter_db, meter_normalized, gate_level, gate_open, env;
             var lowpass, bandpass, highpass;
+
+            // Envelope for smooth fade-in/out (open by default with gate=1)
+            env = EnvGen.kr(Env.asr(0.01, 1, 0.1), gate, doneAction: 0);
 
             src = In.ar(inBus, 2);
 
@@ -240,12 +243,15 @@ Engine_Bands : CroneEngine {
             Select.kr(meterBus >= 0, [DC.kr(0), Out.kr(meterBus, meter_normalized)]);
             // safety limiting
             outSig = Limiter.ar(outSig, 0.95, 0.01);
+            // Apply envelope for smooth fade-in/out
+            outSig = outSig * env;
             Out.ar(outBus, outSig);
         }).add;
 
         // CRITICAL: Wait for all SynthDefs to be compiled before creating synths
         // This prevents clicks on script load
-        context.server.sync;
+        Server.default.sync;
+
 
         freqs = [
             80, 150, 250, 350, 500, 630, 800, 1000,
@@ -268,7 +274,8 @@ Engine_Bands : CroneEngine {
         ~fileBuffer = Buffer.alloc(context.server, context.server.sampleRate * 2, 2); // 2 seconds, stereo
         
         // Wait for buffer allocation to complete
-        context.server.sync;
+        Server.default.sync;
+
         
         ~bandGroup = Group.head(context.xg);
         
@@ -278,7 +285,7 @@ Engine_Bands : CroneEngine {
             \audioInSource,
             [
                 \outBus, ~inputBus,
-                \level, 1.0  // Params will override this after server.sync
+                \level, 0.0  // Start silent, user brings it up manually
             ]
         );
         
@@ -348,12 +355,14 @@ Engine_Bands : CroneEngine {
                     \level, -12.0,
                     \pan, (i.linlin(0, (freqs.size - 1).max(1), -0.5, 0.5)),
                     \meterBus, (~meterBuses[i].index),
-                    \filterType, ftype
+                    \filterType, ftype,
+                    \gate, 1  // Envelope open by default
                 ]
             )
         };
 
-        context.server.sync;
+        Server.default.sync;
+
         
         // Create effects chain synths
         ~delayFx = Synth.tail(

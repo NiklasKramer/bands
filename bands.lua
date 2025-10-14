@@ -234,6 +234,14 @@ local function calculate_blend_weights(x, y)
     return a_weight, b_weight, c_weight, d_weight
 end
 
+-- Check if we're at a snapshot corner (100% on one snapshot)
+local function is_at_snapshot_corner(x, y)
+    return (x == 1 and y == 1) or -- A
+        (x == 14 and y == 1) or   -- B
+        (x == 1 and y == 14) or   -- C
+        (x == 14 and y == 14)     -- D
+end
+
 -- Apply blended parameters to engine
 function apply_blend(x, y, old_x, old_y)
     local a_w, b_w, c_w, d_w = calculate_blend_weights(x, y)
@@ -590,8 +598,11 @@ function apply_blend(x, y, old_x, old_y)
             params:set(decimate_id, target_values[decimate_id])
         end
 
-        -- Auto-save changes to current snapshot
-        store_snapshot(current_snapshot)
+        -- Only auto-save when at a snapshot corner (100% on one snapshot)
+        -- This prevents blended values from overwriting snapshots
+        if is_at_snapshot_corner(x, y) then
+            store_snapshot(current_snapshot)
+        end
     end
 end
 
@@ -1747,7 +1758,7 @@ function enc(n, d)
                 elseif effects_mode_state.selected_param == 2 then
                     -- Delay Feedback
                     local current = params:get("delay_feedback")
-                    local new_val = util.clamp(current + d * 0.01, 0, 0.95)
+                    local new_val = util.clamp(current + d * 0.01, 0, 1.2) -- Allow up to 1.2 for extreme feedback
                     params:set("delay_feedback", new_val)
                     store_snapshot(current_snapshot)
                 elseif effects_mode_state.selected_param == 3 then
@@ -1768,31 +1779,31 @@ function enc(n, d)
                 if effects_mode_state.selected_param == 1 then
                     -- Low Cut (exponential)
                     local current = params:get("eq_low_cut")
-                    local new_val = math.max(20, math.min(2000, current * math.exp(d * 0.05)))
+                    local new_val = math.max(10, math.min(5000, current * math.exp(d * 0.05)))
                     params:set("eq_low_cut", new_val)
                     store_snapshot(current_snapshot)
                 elseif effects_mode_state.selected_param == 2 then
                     -- High Cut (exponential)
                     local current = params:get("eq_high_cut")
-                    local new_val = math.max(1000, math.min(20000, current * math.exp(d * 0.05)))
+                    local new_val = math.max(500, math.min(22000, current * math.exp(d * 0.05)))
                     params:set("eq_high_cut", new_val)
                     store_snapshot(current_snapshot)
                 elseif effects_mode_state.selected_param == 3 then
                     -- Low Gain
                     local current = params:get("eq_low_gain")
-                    local new_val = util.clamp(current + d * 0.5, -24, 12)
+                    local new_val = util.clamp(current + d * 0.5, -48, 24)
                     params:set("eq_low_gain", new_val)
                     store_snapshot(current_snapshot)
                 elseif effects_mode_state.selected_param == 4 then
                     -- Mid Gain
                     local current = params:get("eq_mid_gain")
-                    local new_val = util.clamp(current + d * 0.5, -24, 12)
+                    local new_val = util.clamp(current + d * 0.5, -48, 24)
                     params:set("eq_mid_gain", new_val)
                     store_snapshot(current_snapshot)
                 elseif effects_mode_state.selected_param == 5 then
                     -- High Gain
                     local current = params:get("eq_high_gain")
-                    local new_val = util.clamp(current + d * 0.5, -24, 12)
+                    local new_val = util.clamp(current + d * 0.5, -48, 24)
                     params:set("eq_high_gain", new_val)
                     store_snapshot(current_snapshot)
                 end
@@ -1955,7 +1966,7 @@ function add_params()
         type = "control",
         id = "audio_in_level",
         name = "Level",
-        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0), -- Default 1.0 (server.sync prevents clicks)
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0), -- Default 0.0 (user brings it up manually)
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(level)
             if engine and engine.audio_in_level then engine.audio_in_level(level) end
@@ -2165,7 +2176,7 @@ function add_params()
         type = "control",
         id = "delay_feedback",
         name = "Feedback",
-        controlspec = controlspec.new(0, 0.95, 'lin', 0.01, 0.5),
+        controlspec = controlspec.new(0, 1.2, 'lin', 0.01, 0.5), -- Max 1.2 for extreme/self-oscillating feedback
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(feedback)
             if engine and engine.delay_feedback then engine.delay_feedback(feedback) end
@@ -2200,7 +2211,7 @@ function add_params()
         type = "control",
         id = "eq_low_cut",
         name = "Low Cut",
-        controlspec = controlspec.new(20, 2000, 'exp', 1, 20, 'Hz'),
+        controlspec = controlspec.new(10, 5000, 'exp', 1, 20, 'Hz'), -- More extreme: 10Hz-5kHz
         formatter = function(p) return string.format("%.0f Hz", p:get()) end,
         action = function(freq)
             if engine and engine.eq_low_cut then engine.eq_low_cut(freq) end
@@ -2211,7 +2222,7 @@ function add_params()
         type = "control",
         id = "eq_high_cut",
         name = "High Cut",
-        controlspec = controlspec.new(1000, 20000, 'exp', 1, 20000, 'Hz'),
+        controlspec = controlspec.new(500, 22000, 'exp', 1, 20000, 'Hz'), -- More extreme: 500Hz-22kHz
         formatter = function(p) return string.format("%.0f Hz", p:get()) end,
         action = function(freq)
             if engine and engine.eq_high_cut then engine.eq_high_cut(freq) end
@@ -2222,7 +2233,7 @@ function add_params()
         type = "control",
         id = "eq_low_gain",
         name = "Low Gain",
-        controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
+        controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'), -- More extreme: -48 to +24 dB
         formatter = function(p) return string.format("%.1f dB", p:get()) end,
         action = function(gain)
             if engine and engine.eq_low_gain then engine.eq_low_gain(gain) end
@@ -2233,7 +2244,7 @@ function add_params()
         type = "control",
         id = "eq_mid_gain",
         name = "Mid Gain",
-        controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
+        controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'), -- More extreme: -48 to +24 dB
         formatter = function(p) return string.format("%.1f dB", p:get()) end,
         action = function(gain)
             if engine and engine.eq_mid_gain then engine.eq_mid_gain(gain) end
@@ -2244,7 +2255,7 @@ function add_params()
         type = "control",
         id = "eq_high_gain",
         name = "High Gain",
-        controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
+        controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'), -- More extreme: -48 to +24 dB
         formatter = function(p) return string.format("%.1f dB", p:get()) end,
         action = function(gain)
             if engine and engine.eq_high_gain then engine.eq_high_gain(gain) end
@@ -2271,7 +2282,7 @@ function add_params()
         type = "control",
         id = "snapshot_a_audio_in_level",
         name = "Audio In Level",
-        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
     params:add {
@@ -2383,7 +2394,7 @@ function add_params()
         type = "control",
         id = "snapshot_a_delay_feedback",
         name = "Delay Feedback",
-        controlspec = controlspec.new(0, 0.95, 'lin', 0.01, 0.5),
+        controlspec = controlspec.new(0, 1.2, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
     params:add {
@@ -2404,35 +2415,35 @@ function add_params()
         type = "control",
         id = "snapshot_a_eq_low_cut",
         name = "EQ Low Cut",
-        controlspec = controlspec.new(20, 2000, 'exp', 1, 20, 'Hz'),
+        controlspec = controlspec.new(10, 5000, 'exp', 1, 20, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
     params:add {
         type = "control",
         id = "snapshot_a_eq_high_cut",
         name = "EQ High Cut",
-        controlspec = controlspec.new(1000, 20000, 'exp', 1, 20000, 'Hz'),
+        controlspec = controlspec.new(500, 22000, 'exp', 1, 20000, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
     params:add {
         type = "control",
         id = "snapshot_a_eq_low_gain",
         name = "EQ Low Gain",
-        controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
+        controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'),
         formatter = function(p) return string.format("%.1f dB", p:get()) end
     }
     params:add {
         type = "control",
         id = "snapshot_a_eq_mid_gain",
         name = "EQ Mid Gain",
-        controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
+        controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'),
         formatter = function(p) return string.format("%.1f dB", p:get()) end
     }
     params:add {
         type = "control",
         id = "snapshot_a_eq_high_gain",
         name = "EQ High Gain",
-        controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
+        controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'),
         formatter = function(p) return string.format("%.1f dB", p:get()) end
     }
 
@@ -2483,7 +2494,7 @@ function add_params()
         type = "control",
         id = "snapshot_b_audio_in_level",
         name = "Audio In Level",
-        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
     params:add {
@@ -2595,7 +2606,7 @@ function add_params()
         type = "control",
         id = "snapshot_b_delay_feedback",
         name = "Delay Feedback",
-        controlspec = controlspec.new(0, 0.95, 'lin', 0.01, 0.5),
+        controlspec = controlspec.new(0, 1.2, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
     params:add {
@@ -2616,35 +2627,35 @@ function add_params()
         type = "control",
         id = "snapshot_b_eq_low_cut",
         name = "EQ Low Cut",
-        controlspec = controlspec.new(20, 2000, 'exp', 1, 20, 'Hz'),
+        controlspec = controlspec.new(10, 5000, 'exp', 1, 20, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
     params:add {
         type = "control",
         id = "snapshot_b_eq_high_cut",
         name = "EQ High Cut",
-        controlspec = controlspec.new(1000, 20000, 'exp', 1, 20000, 'Hz'),
+        controlspec = controlspec.new(500, 22000, 'exp', 1, 20000, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
     params:add {
         type = "control",
         id = "snapshot_b_eq_low_gain",
         name = "EQ Low Gain",
-        controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
+        controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'),
         formatter = function(p) return string.format("%.1f dB", p:get()) end
     }
     params:add {
         type = "control",
         id = "snapshot_b_eq_mid_gain",
         name = "EQ Mid Gain",
-        controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
+        controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'),
         formatter = function(p) return string.format("%.1f dB", p:get()) end
     }
     params:add {
         type = "control",
         id = "snapshot_b_eq_high_gain",
         name = "EQ High Gain",
-        controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
+        controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'),
         formatter = function(p) return string.format("%.1f dB", p:get()) end
     }
 
@@ -2695,7 +2706,7 @@ function add_params()
         type = "control",
         id = "snapshot_c_audio_in_level",
         name = "Audio In Level",
-        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
     params:add {
@@ -2807,7 +2818,7 @@ function add_params()
         type = "control",
         id = "snapshot_c_delay_feedback",
         name = "Delay Feedback",
-        controlspec = controlspec.new(0, 0.95, 'lin', 0.01, 0.5),
+        controlspec = controlspec.new(0, 1.2, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
     params:add {
@@ -2828,35 +2839,35 @@ function add_params()
         type = "control",
         id = "snapshot_c_eq_low_cut",
         name = "EQ Low Cut",
-        controlspec = controlspec.new(20, 2000, 'exp', 1, 20, 'Hz'),
+        controlspec = controlspec.new(10, 5000, 'exp', 1, 20, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
     params:add {
         type = "control",
         id = "snapshot_c_eq_high_cut",
         name = "EQ High Cut",
-        controlspec = controlspec.new(1000, 20000, 'exp', 1, 20000, 'Hz'),
+        controlspec = controlspec.new(500, 22000, 'exp', 1, 20000, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
     params:add {
         type = "control",
         id = "snapshot_c_eq_low_gain",
         name = "EQ Low Gain",
-        controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
+        controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'),
         formatter = function(p) return string.format("%.1f dB", p:get()) end
     }
     params:add {
         type = "control",
         id = "snapshot_c_eq_mid_gain",
         name = "EQ Mid Gain",
-        controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
+        controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'),
         formatter = function(p) return string.format("%.1f dB", p:get()) end
     }
     params:add {
         type = "control",
         id = "snapshot_c_eq_high_gain",
         name = "EQ High Gain",
-        controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
+        controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'),
         formatter = function(p) return string.format("%.1f dB", p:get()) end
     }
 
@@ -2907,7 +2918,7 @@ function add_params()
         type = "control",
         id = "snapshot_d_audio_in_level",
         name = "Audio In Level",
-        controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
     params:add {
@@ -3019,7 +3030,7 @@ function add_params()
         type = "control",
         id = "snapshot_d_delay_feedback",
         name = "Delay Feedback",
-        controlspec = controlspec.new(0, 0.95, 'lin', 0.01, 0.5),
+        controlspec = controlspec.new(0, 1.2, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
     params:add {
@@ -3040,35 +3051,35 @@ function add_params()
         type = "control",
         id = "snapshot_d_eq_low_cut",
         name = "EQ Low Cut",
-        controlspec = controlspec.new(20, 2000, 'exp', 1, 20, 'Hz'),
+        controlspec = controlspec.new(10, 5000, 'exp', 1, 20, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
     params:add {
         type = "control",
         id = "snapshot_d_eq_high_cut",
         name = "EQ High Cut",
-        controlspec = controlspec.new(1000, 20000, 'exp', 1, 20000, 'Hz'),
+        controlspec = controlspec.new(500, 22000, 'exp', 1, 20000, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
     params:add {
         type = "control",
         id = "snapshot_d_eq_low_gain",
         name = "EQ Low Gain",
-        controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
+        controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'),
         formatter = function(p) return string.format("%.1f dB", p:get()) end
     }
     params:add {
         type = "control",
         id = "snapshot_d_eq_mid_gain",
         name = "EQ Mid Gain",
-        controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
+        controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'),
         formatter = function(p) return string.format("%.1f dB", p:get()) end
     }
     params:add {
         type = "control",
         id = "snapshot_d_eq_high_gain",
         name = "EQ High Gain",
-        controlspec = controlspec.new(-24, 12, 'lin', 0.1, 0, 'dB'),
+        controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'),
         formatter = function(p) return string.format("%.1f dB", p:get()) end
     }
 
