@@ -89,7 +89,40 @@ local snapshots = {
     C = { name = "Snapshot C", params = {} },
     D = { name = "Snapshot D", params = {} }
 }
-local current_snapshot = "A"
+
+-- Get current snapshot based on matrix position
+local function get_current_snapshot_from_position()
+    local x = grid_ui_state.current_matrix_pos.x
+    local y = grid_ui_state.current_matrix_pos.y
+
+    if x == 1 and y == 1 then
+        return "A"
+    elseif x == 14 and y == 1 then
+        return "B"
+    elseif x == 1 and y == 14 then
+        return "C"
+    elseif x == 14 and y == 14 then
+        return "D"
+    else
+        -- When not at a corner, return the closest corner
+        -- This determines which snapshot letter to show in snapshot display
+        local dist_a = math.abs(x - 1) + math.abs(y - 1)
+        local dist_b = math.abs(x - 14) + math.abs(y - 1)
+        local dist_c = math.abs(x - 1) + math.abs(y - 14)
+        local dist_d = math.abs(x - 14) + math.abs(y - 14)
+        local min_dist = math.min(dist_a, dist_b, dist_c, dist_d)
+
+        if min_dist == dist_a then
+            return "A"
+        elseif min_dist == dist_b then
+            return "B"
+        elseif min_dist == dist_c then
+            return "C"
+        else
+            return "D"
+        end
+    end
+end
 
 -- Clipboard for copy/paste
 local clipboard = nil
@@ -217,7 +250,7 @@ local function paste_snapshot()
     end
 
     -- Save to current snapshot
-    store_snapshot(current_snapshot)
+    store_snapshot(get_current_snapshot_from_position())
 
     -- Show banner
     if params:get("info_banner") == 2 then
@@ -608,16 +641,34 @@ function apply_blend(x, y, old_x, old_y)
 
         -- Only auto-save when at a snapshot corner (100% on one snapshot)
         -- This prevents blended values from overwriting snapshots
-        if is_at_snapshot_corner(x, y) then
+        local was_at_corner = is_at_snapshot_corner(old_x, old_y)
+        local now_at_corner = is_at_snapshot_corner(x, y)
+
+        if now_at_corner then
+            -- Get which snapshot we're at based on position
+            local current_snapshot = get_current_snapshot_from_position()
+
+            -- Show banner when arriving at a corner
+            if not was_at_corner then
+                if params:get("info_banner") == 2 then
+                    info_banner_mod.show("EDITING: " .. current_snapshot)
+                end
+            end
+
             store_snapshot(current_snapshot)
+        elseif was_at_corner and not now_at_corner then
+            -- Just left a corner, entering blend zone
+            if params:get("info_banner") == 2 then
+                info_banner_mod.show("BLEND MODE (NO SAVE)")
+            end
         end
     end
 end
 
 -- Switch to a snapshot
 local function switch_to_snapshot(snapshot_name)
-    -- Use a table reference to allow the module to modify current_snapshot
-    local current_snapshot_ref = { current_snapshot }
+    -- Switch to snapshot moves matrix position to the corner
+    -- Current snapshot is then derived from that position
     snapshot_mod.switch_to_snapshot(
         snapshot_name,
         params,
@@ -626,10 +677,8 @@ local function switch_to_snapshot(snapshot_name)
         glide_state,
         apply_blend,
         redraw,
-        redraw_grid,
-        current_snapshot_ref
+        redraw_grid
     )
-    current_snapshot = current_snapshot_ref[1]
 end
 
 
@@ -729,7 +778,7 @@ function init()
         calculate_blend_weights = calculate_blend_weights,
         path_state = path_state,
         glide_state = glide_state,
-        get_current_snapshot = function() return current_snapshot end
+        get_current_snapshot = function() return get_current_snapshot_from_position() end
     })
 
     -- initialize info banner
@@ -790,7 +839,7 @@ function grid.key(x, y, z)
         remove_path_point = path_mod.remove_path_point,
         clear_path = path_mod.clear_path,
         get_path_mode = path_mod.get_path_mode,
-        get_current_snapshot = function() return current_snapshot end,
+        get_current_snapshot = function() return get_current_snapshot_from_position() end,
         get_freqs = function() return freqs end,
         get_mode_names = function() return mode_names end,
         get_band_meters = function() return band_meters end,
@@ -1422,14 +1471,6 @@ function redraw()
     -- Draw screen indicators on the left side (7 modes total)
     screen_indicators.draw_screen_indicator(7, norns_mode + 1)
 
-    -- Draw current snapshot indicator (top right)
-    local at_corner = is_at_snapshot_corner(grid_ui_state.current_matrix_pos.x, grid_ui_state.current_matrix_pos.y)
-    screen.font_face(1)
-    screen.font_size(8)
-    screen.level(at_corner and 15 or 4)                              -- Bright when at corner, dim when blended
-    screen.move(120, 7)
-    screen.text_right(current_snapshot .. (at_corner and "*" or "")) -- Add * when at corner (edits will save)
-
     -- Draw info banner on top of everything
     info_banner_mod.draw()
 
@@ -1498,34 +1539,42 @@ function key(n, z)
                 if params:get("info_banner") == 2 then
                     info_banner_mod.show(string.format("POSITION %d,%d", selected_matrix_pos.x, selected_matrix_pos.y))
                 end
-            elseif norns_mode == 1 then
-                -- Reset levels to -12dB
-                for i = 1, #freqs do
-                    params:set(string.format("band_%02d_level", i), -12)
+            elseif norns_mode >= 1 and norns_mode <= 4 then
+                -- Band modes: Reset functions (require being at corner)
+                local at_corner = is_at_snapshot_corner(grid_ui_state.current_matrix_pos.x,
+                    grid_ui_state.current_matrix_pos.y)
+                if not at_corner then
+                    if params:get("info_banner") == 2 then
+                        info_banner_mod.show("MOVE TO CORNER TO EDIT")
+                    end
+                    return
                 end
-                -- Save to current snapshot
-                store_snapshot(current_snapshot)
-            elseif norns_mode == 2 then
-                -- Reset pans to center (0)
-                for i = 1, #freqs do
-                    params:set(string.format("band_%02d_pan", i), 0)
+
+                if norns_mode == 1 then
+                    -- Reset levels to -12dB
+                    for i = 1, #freqs do
+                        params:set(string.format("band_%02d_level", i), -12)
+                    end
+                    store_snapshot(get_current_snapshot_from_position())
+                elseif norns_mode == 2 then
+                    -- Reset pans to center (0)
+                    for i = 1, #freqs do
+                        params:set(string.format("band_%02d_pan", i), 0)
+                    end
+                    store_snapshot(get_current_snapshot_from_position())
+                elseif norns_mode == 3 then
+                    -- Reset thresholds to 0.0 (all audio passes through)
+                    for i = 1, #freqs do
+                        params:set(string.format("band_%02d_thresh", i), 0.0)
+                    end
+                    store_snapshot(get_current_snapshot_from_position())
+                elseif norns_mode == 4 then
+                    -- Reset decimate to 48000 Hz (no decimation)
+                    for i = 1, #freqs do
+                        params:set(string.format("band_%02d_decimate", i), 48000)
+                    end
+                    store_snapshot(get_current_snapshot_from_position())
                 end
-                -- Save to current snapshot
-                store_snapshot(current_snapshot)
-            elseif norns_mode == 3 then
-                -- Reset thresholds to 0.0 (all audio passes through)
-                for i = 1, #freqs do
-                    params:set(string.format("band_%02d_thresh", i), 0.0)
-                end
-                -- Save to current snapshot
-                store_snapshot(current_snapshot)
-            elseif norns_mode == 4 then
-                -- Reset decimate to 48000 Hz (no decimation)
-                for i = 1, #freqs do
-                    params:set(string.format("band_%02d_decimate", i), 48000)
-                end
-                -- Save to current snapshot
-                store_snapshot(current_snapshot)
             end
         elseif n == 3 then
             -- Key 3: Paste snapshot (with shift) or context-dependent action
@@ -1553,40 +1602,48 @@ function key(n, z)
                 -- Matrix mode: Set selector to random position
                 selected_matrix_pos.x = math.random(1, 14)
                 selected_matrix_pos.y = math.random(1, 14)
-            elseif norns_mode == 1 then
-                -- Randomize levels (-60dB to +12dB)
-                for i = 1, #freqs do
-                    local random_level = math.random(-60, 12)
-                    params:set(string.format("band_%02d_level", i), random_level)
+            elseif norns_mode >= 1 and norns_mode <= 4 then
+                -- Band modes: Randomize functions (require being at corner)
+                local at_corner = is_at_snapshot_corner(grid_ui_state.current_matrix_pos.x,
+                    grid_ui_state.current_matrix_pos.y)
+                if not at_corner then
+                    if params:get("info_banner") == 2 then
+                        info_banner_mod.show("MOVE TO CORNER TO EDIT")
+                    end
+                    return
                 end
-                -- Save to current snapshot
-                store_snapshot(current_snapshot)
-            elseif norns_mode == 2 then
-                -- Randomize pans (-1 to +1)
-                for i = 1, #freqs do
-                    local random_pan = (math.random() - 0.5) * 2
-                    params:set(string.format("band_%02d_pan", i), random_pan)
+
+                if norns_mode == 1 then
+                    -- Randomize levels (-60dB to +12dB)
+                    for i = 1, #freqs do
+                        local random_level = math.random(-60, 12)
+                        params:set(string.format("band_%02d_level", i), random_level)
+                    end
+                    store_snapshot(get_current_snapshot_from_position())
+                elseif norns_mode == 2 then
+                    -- Randomize pans (-1 to +1)
+                    for i = 1, #freqs do
+                        local random_pan = (math.random() - 0.5) * 2
+                        params:set(string.format("band_%02d_pan", i), random_pan)
+                    end
+                    store_snapshot(get_current_snapshot_from_position())
+                elseif norns_mode == 3 then
+                    -- Randomize thresholds (0.0 to 0.2)
+                    for i = 1, #freqs do
+                        local random_thresh = math.random() * 0.2 -- Returns value between 0.0 and 0.2
+                        params:set(string.format("band_%02d_thresh", i), random_thresh)
+                    end
+                    store_snapshot(get_current_snapshot_from_position())
+                elseif norns_mode == 4 then
+                    -- Randomize decimate rates (100 to 48000 Hz)
+                    for i = 1, #freqs do
+                        -- Random exponential value
+                        local random_normalized = math.random()
+                        local random_rate = math.floor(48000 * math.exp(-random_normalized * 6.2))
+                        params:set(string.format("band_%02d_decimate", i), random_rate)
+                    end
+                    store_snapshot(get_current_snapshot_from_position())
                 end
-                -- Save to current snapshot
-                store_snapshot(current_snapshot)
-            elseif norns_mode == 3 then
-                -- Randomize thresholds (0.0 to 0.2)
-                for i = 1, #freqs do
-                    local random_thresh = math.random() * 0.2 -- Returns value between 0.0 and 0.2
-                    params:set(string.format("band_%02d_thresh", i), random_thresh)
-                end
-                -- Save to current snapshot
-                store_snapshot(current_snapshot)
-            elseif norns_mode == 4 then
-                -- Randomize decimate rates (100 to 48000 Hz)
-                for i = 1, #freqs do
-                    -- Random exponential value
-                    local random_normalized = math.random()
-                    local random_rate = math.floor(48000 * math.exp(-random_normalized * 6.2))
-                    params:set(string.format("band_%02d_decimate", i), random_rate)
-                end
-                -- Save to current snapshot
-                store_snapshot(current_snapshot)
             end
         end
     end
@@ -1597,6 +1654,7 @@ function enc(n, d)
         if grid_ui_state.shift_held then
             -- Shift + Encoder 1: Switch snapshots
             local snapshots_list = { "A", "B", "C", "D" }
+            local current_snapshot = get_current_snapshot_from_position()
             local current_index = 1
             for i, snap in ipairs(snapshots_list) do
                 if snap == current_snapshot then
@@ -1664,6 +1722,17 @@ function enc(n, d)
             selected_band = math.max(1, math.min(#freqs, selected_band))
         end
     elseif n == 3 then
+        -- Check if we're at a snapshot corner before allowing edits
+        local at_corner = is_at_snapshot_corner(grid_ui_state.current_matrix_pos.x, grid_ui_state.current_matrix_pos.y)
+
+        if not at_corner then
+            -- Not at a corner - show warning and block edits
+            if params:get("info_banner") == 2 then
+                info_banner_mod.show("MOVE TO CORNER TO EDIT")
+            end
+            return
+        end
+
         if norns_mode == 0 then
             -- Inputs mode: Adjust selected parameter (E3)
             if input_mode_state.selected_input == 1 then
@@ -1671,34 +1740,34 @@ function enc(n, d)
                 local current = params:get("audio_in_level")
                 local new_val = util.clamp(current + d * 0.01, 0, 1)
                 params:set("audio_in_level", new_val)
-                store_snapshot(current_snapshot)
+                store_snapshot(get_current_snapshot_from_position())
             elseif input_mode_state.selected_input == 2 then
                 -- Osc: Adjust selected parameter
                 if input_mode_state.selected_param == 1 then
                     local current = params:get("osc_level")
                     local new_val = util.clamp(current + d * 0.01, 0, 1)
                     params:set("osc_level", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif input_mode_state.selected_param == 2 then
                     local current = params:get("osc_freq")
                     local new_val = util.clamp(current * math.exp(d * 0.05), 0.1, 2000)
                     params:set("osc_freq", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif input_mode_state.selected_param == 3 then
                     local current = params:get("osc_timbre")
                     local new_val = util.clamp(current + d * 0.01, 0, 1)
                     params:set("osc_timbre", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif input_mode_state.selected_param == 4 then
                     local current = params:get("osc_warp")
                     local new_val = util.clamp(current + d * 0.01, 0, 1)
                     params:set("osc_warp", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif input_mode_state.selected_param == 5 then
                     local current = params:get("osc_mod_rate")
                     local new_val = util.clamp(current * math.exp(d * 0.05), 0.1, 100)
                     params:set("osc_mod_rate", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 end
             elseif input_mode_state.selected_input == 3 then
                 -- Dust: Adjust selected parameter
@@ -1706,12 +1775,12 @@ function enc(n, d)
                     local current = params:get("dust_level")
                     local new_val = util.clamp(current + d * 0.01, 0, 1)
                     params:set("dust_level", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif input_mode_state.selected_param == 2 then
                     local current = params:get("dust_density")
                     local new_val = util.clamp(current + d * 10, 1, 1000)
                     params:set("dust_density", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 end
             elseif input_mode_state.selected_input == 4 then
                 -- Noise: Adjust selected parameter
@@ -1719,17 +1788,17 @@ function enc(n, d)
                     local current = params:get("noise_level")
                     local new_val = util.clamp(current + d * 0.01, 0, 1)
                     params:set("noise_level", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif input_mode_state.selected_param == 2 then
                     local current = params:get("noise_lfo_rate")
                     local new_val = util.clamp(current + d * 0.5, 0, 20)
                     params:set("noise_lfo_rate", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif input_mode_state.selected_param == 3 then
                     local current = params:get("noise_lfo_depth")
                     local new_val = util.clamp(current + d * 0.01, 0, 1)
                     params:set("noise_lfo_depth", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 end
             elseif input_mode_state.selected_input == 5 then
                 -- File: Adjust selected parameter via Enc 3
@@ -1738,13 +1807,13 @@ function enc(n, d)
                     local current = params:get("file_level")
                     local new_val = util.clamp(current + d * 0.01, 0, 1)
                     params:set("file_level", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif input_mode_state.selected_param == 2 then
                     -- Speed
                     local current = params:get("file_speed")
                     local new_val = util.clamp(current + d * 0.1, -4, 4)
                     params:set("file_speed", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif input_mode_state.selected_param == 3 then
                     -- Play/Stop (toggle on any encoder turn)
                     if d ~= 0 then
@@ -1770,25 +1839,25 @@ function enc(n, d)
                     local current = params:get("delay_time")
                     local new_val = math.max(0.01, math.min(2.0, current * math.exp(d * 0.05)))
                     params:set("delay_time", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif effects_mode_state.selected_param == 2 then
                     -- Delay Feedback
                     local current = params:get("delay_feedback")
                     local new_val = util.clamp(current + d * 0.01, 0, 1.2) -- Allow up to 1.2 for extreme feedback
                     params:set("delay_feedback", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif effects_mode_state.selected_param == 3 then
                     -- Delay Mix
                     local current = params:get("delay_mix")
                     local new_val = util.clamp(current + d * 0.01, 0, 1)
                     params:set("delay_mix", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif effects_mode_state.selected_param == 4 then
                     -- Delay Width
                     local current = params:get("delay_width")
                     local new_val = util.clamp(current + d * 0.01, 0, 1)
                     params:set("delay_width", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 end
             elseif effects_mode_state.selected_effect == 2 then
                 -- EQ effect
@@ -1797,31 +1866,31 @@ function enc(n, d)
                     local current = params:get("eq_low_cut")
                     local new_val = math.max(10, math.min(5000, current * math.exp(d * 0.05)))
                     params:set("eq_low_cut", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif effects_mode_state.selected_param == 2 then
                     -- High Cut (exponential)
                     local current = params:get("eq_high_cut")
                     local new_val = math.max(500, math.min(22000, current * math.exp(d * 0.05)))
                     params:set("eq_high_cut", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif effects_mode_state.selected_param == 3 then
                     -- Low Gain
                     local current = params:get("eq_low_gain")
                     local new_val = util.clamp(current + d * 0.5, -48, 24)
                     params:set("eq_low_gain", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif effects_mode_state.selected_param == 4 then
                     -- Mid Gain
                     local current = params:get("eq_mid_gain")
                     local new_val = util.clamp(current + d * 0.5, -48, 24)
                     params:set("eq_mid_gain", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif effects_mode_state.selected_param == 5 then
                     -- High Gain
                     local current = params:get("eq_high_gain")
                     local new_val = util.clamp(current + d * 0.5, -48, 24)
                     params:set("eq_high_gain", new_val)
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 end
             end
         elseif norns_mode == 6 then
@@ -1878,7 +1947,7 @@ function enc(n, d)
                     end
                 end
                 -- Save to current snapshot
-                store_snapshot(current_snapshot)
+                store_snapshot(get_current_snapshot_from_position())
             else
                 -- No shift: Adjust selected band only
                 local band_idx = selected_band
@@ -1890,7 +1959,7 @@ function enc(n, d)
                     local new_level = math.max(-60, math.min(12, current_level + step))
                     params:set(string.format("band_%02d_level", band_idx), new_level)
                     -- Save to current snapshot
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif norns_mode == 2 then
                     -- Adjust pan - fine control
                     local step = d * 0.01 -- 0.01 per turn for pan
@@ -1898,7 +1967,7 @@ function enc(n, d)
                     local new_pan = math.max(-1, math.min(1, current_pan + step))
                     params:set(string.format("band_%02d_pan", band_idx), new_pan)
                     -- Save to current snapshot
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif norns_mode == 3 then
                     -- Adjust threshold - fine control
                     local step = d * 0.01 -- 0.01 per turn for thresholds (0.0-1.0 range)
@@ -1906,7 +1975,7 @@ function enc(n, d)
                     local new_thresh = math.max(0, math.min(1, current_thresh + step))
                     params:set(string.format("band_%02d_thresh", band_idx), new_thresh)
                     -- Save to current snapshot
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 elseif norns_mode == 4 then
                     -- Adjust decimate rate
                     local step = d * 500 -- 500 Hz steps
@@ -1914,7 +1983,7 @@ function enc(n, d)
                     local new_rate = math.max(100, math.min(48000, current_rate + step))
                     params:set(string.format("band_%02d_decimate", band_idx), new_rate)
                     -- Save to current snapshot
-                    store_snapshot(current_snapshot)
+                    store_snapshot(get_current_snapshot_from_position())
                 end
             end
         end
@@ -1939,7 +2008,7 @@ function add_params()
         action = function(q)
             if engine and engine.q then engine.q(q) end
             -- Also update current snapshot params
-            local snapshot_q_id = string.format("snapshot_%s_q", string.lower(current_snapshot))
+            local snapshot_q_id = string.format("snapshot_%s_q", string.lower(get_current_snapshot_from_position()))
             params:set(snapshot_q_id, q)
         end
     }

@@ -145,10 +145,9 @@ function Snapshot.recall_snapshot(snapshot_name, params, freqs)
 end
 
 -- Switch to a snapshot
-function Snapshot.switch_to_snapshot(snapshot_name, params, freqs, grid_ui_state, glide_state, apply_blend, redraw, redraw_grid, current_snapshot_ref)
-    -- Never store current snapshot to avoid overwriting with path values
-    -- Snapshots should only be updated when explicitly storing to them
-    current_snapshot_ref[1] = snapshot_name
+function Snapshot.switch_to_snapshot(snapshot_name, params, freqs, grid_ui_state, glide_state, apply_blend, redraw,
+                                     redraw_grid)
+    -- Recall the snapshot parameters
     Snapshot.recall_snapshot(snapshot_name, params, freqs)
 
     -- Stop any ongoing glide when switching snapshots
@@ -179,4 +178,3 @@ function Snapshot.switch_to_snapshot(snapshot_name, params, freqs, grid_ui_state
 end
 
 return Snapshot
-
