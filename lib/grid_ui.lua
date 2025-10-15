@@ -26,7 +26,7 @@ function GridUI.handle_matrix_control(ui_state, x, y, snapshot_functions)
         if ui_state.shift_held then
             snapshot_functions.clear_path()
             if snapshot_functions.show_banner then
-                snapshot_functions.show_banner("PATH CLEARED")
+                snapshot_functions.show_banner("GRID: PATH CLEARED")
             end
         else
             snapshot_functions.toggle_path_mode()
@@ -44,13 +44,13 @@ function GridUI.handle_matrix_control(ui_state, x, y, snapshot_functions)
                 -- Shift + press: remove point from path if it exists
                 snapshot_functions.remove_path_point(matrix_x, matrix_y)
                 if snapshot_functions.show_banner then
-                    snapshot_functions.show_banner("POINT REMOVED")
+                    snapshot_functions.show_banner("GRID: POINT REMOVED")
                 end
             else
                 -- Normal press: add point to path
                 snapshot_functions.add_path_point(matrix_x, matrix_y)
                 if snapshot_functions.show_banner then
-                    snapshot_functions.show_banner("POINT ADDED")
+                    snapshot_functions.show_banner("GRID: POINT ADDED")
                 end
             end
         else
@@ -84,29 +84,29 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                 if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
                 -- Show info banner for mode change
                 if snapshot_functions.show_banner then
-                    snapshot_functions.show_banner(ui_state.mode_names[x + 1]) -- +1 because mode_names is 1-indexed
+                    snapshot_functions.show_banner("GRID: " .. ui_state.mode_names[x + 1]) -- +1 because mode_names is 1-indexed
                 end
             elseif x == 7 then
                 if ui_state.shift_held then
-                    snapshot_functions.save_snapshot("A")
+                    snapshot_functions.save_snapshot("A", "grid")
                 else
                     snapshot_functions.switch_to_snapshot("A")
                 end
             elseif x == 8 then
                 if ui_state.shift_held then
-                    snapshot_functions.save_snapshot("B")
+                    snapshot_functions.save_snapshot("B", "grid")
                 else
                     snapshot_functions.switch_to_snapshot("B")
                 end
             elseif x == 9 then
                 if ui_state.shift_held then
-                    snapshot_functions.save_snapshot("C")
+                    snapshot_functions.save_snapshot("C", "grid")
                 else
                     snapshot_functions.switch_to_snapshot("C")
                 end
             elseif x == 10 then
                 if ui_state.shift_held then
-                    snapshot_functions.save_snapshot("D")
+                    snapshot_functions.save_snapshot("D", "grid")
                 else
                     snapshot_functions.switch_to_snapshot("D")
                 end
@@ -116,7 +116,7 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                 if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
                 -- Show info banner for matrix mode
                 if snapshot_functions.show_banner then
-                    snapshot_functions.show_banner("MATRIX")
+                    snapshot_functions.show_banner("GRID: MATRIX")
                 end
             end
         elseif y >= 1 and y <= 15 then

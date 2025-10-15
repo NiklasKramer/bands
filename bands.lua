@@ -47,6 +47,9 @@ local effects_mode_state = {
     selected_param = 1   -- Selected parameter within the effect type
 }
 
+-- Norns screen mode (independent from grid mode)
+local norns_mode = 0 -- 0=inputs, 1=levels, 2=pans, 3=thresholds, 4=decimate, 5=effects, 6=matrix
+
 -- Current state is now managed by the params system
 
 -- Update selected band
@@ -105,8 +108,13 @@ local function store_snapshot(snapshot_name)
     snapshot_mod.store_snapshot(snapshot_name, params, freqs)
 end
 
-local function save_snapshot(snapshot_name)
+local function save_snapshot(snapshot_name, source)
     store_snapshot(snapshot_name)
+    -- Show banner only when explicitly saving (not auto-save)
+    if source and params:get("info_banner") == 2 then
+        local prefix = (source == "grid") and "GRID: " or ""
+        info_banner_mod.show(prefix .. "SAVED " .. snapshot_name)
+    end
 end
 
 local function recall_snapshot(snapshot_name)
@@ -837,7 +845,7 @@ function redraw()
     local DOT_Y = 58
 
     -- Mode-specific screens
-    if grid_ui_state.grid_mode == 0 then
+    if norns_mode == 0 then
         -- Inputs mode - Centered layout with symbols
         local input_symbols = { "I", "~", ".", "*", ">" } -- input, osc, dust, noise, file
         local content_x = 64                              -- Center x for content
@@ -1036,7 +1044,7 @@ function redraw()
 
         -- Draw snapshot letters
         draw_snapshot_letters()
-    elseif grid_ui_state.grid_mode == 1 then
+    elseif norns_mode == 1 then
         -- Levels screen - Visual meters
         local num_bands = math.min(16, #freqs)
         local meter_width = 3
@@ -1095,7 +1103,7 @@ function redraw()
 
         -- Draw snapshot letters
         draw_snapshot_letters()
-    elseif grid_ui_state.grid_mode == 2 then
+    elseif norns_mode == 2 then
         -- Pans screen - Visual pan indicators
         local num_bands = math.min(16, #freqs)
         local indicator_width = 3
@@ -1140,7 +1148,7 @@ function redraw()
 
         -- Draw snapshot letters
         draw_snapshot_letters()
-    elseif grid_ui_state.grid_mode == 3 then
+    elseif norns_mode == 3 then
         -- Thresholds screen - Visual threshold indicators
         local num_bands = math.min(16, #freqs)
         local indicator_width = 3
@@ -1180,7 +1188,7 @@ function redraw()
 
         -- Draw snapshot letters
         draw_snapshot_letters()
-    elseif grid_ui_state.grid_mode == 4 then
+    elseif norns_mode == 4 then
         -- Decimate screen - Visual decimate rate indicators
         local num_bands = math.min(16, #freqs)
         local indicator_width = 3
@@ -1221,7 +1229,7 @@ function redraw()
 
         -- Draw snapshot letters
         draw_snapshot_letters()
-    elseif grid_ui_state.grid_mode == 6 then
+    elseif norns_mode == 6 then
         -- Matrix screen - Visual matrix display (spacious, centered)
         local matrix_size = 14
         local cell_size = 4
@@ -1303,7 +1311,7 @@ function redraw()
 
         -- Draw snapshot letters
         draw_snapshot_letters()
-    elseif grid_ui_state.grid_mode == 5 then
+    elseif norns_mode == 5 then
         -- Effects screen - Centered layout with symbols
         local effect_symbols = { "|..", "=-=" } -- delay (echo), eq (bands)
         local content_x = 64
@@ -1412,7 +1420,15 @@ function redraw()
     end
 
     -- Draw screen indicators on the left side (7 modes total)
-    screen_indicators.draw_screen_indicator(7, grid_ui_state.grid_mode + 1)
+    screen_indicators.draw_screen_indicator(7, norns_mode + 1)
+
+    -- Draw current snapshot indicator (top right)
+    local at_corner = is_at_snapshot_corner(grid_ui_state.current_matrix_pos.x, grid_ui_state.current_matrix_pos.y)
+    screen.font_face(1)
+    screen.font_size(8)
+    screen.level(at_corner and 15 or 4)                              -- Bright when at corner, dim when blended
+    screen.move(120, 7)
+    screen.text_right(current_snapshot .. (at_corner and "*" or "")) -- Add * when at corner (edits will save)
 
     -- Draw info banner on top of everything
     info_banner_mod.draw()
@@ -1456,7 +1472,7 @@ function key(n, z)
             -- Key 2: Copy snapshot (with shift) or context-dependent action
             if grid_ui_state.shift_held then
                 copy_snapshot()
-            elseif grid_ui_state.grid_mode == 0 then
+            elseif norns_mode == 0 then
                 -- Inputs mode: Previous input type
                 input_mode_state.selected_input = util.clamp(input_mode_state.selected_input - 1, 1, 5)
                 input_mode_state.selected_param = 1 -- Reset param selection
@@ -1465,7 +1481,7 @@ function key(n, z)
                 if params:get("info_banner") == 2 then
                     info_banner_mod.show(input_names[input_mode_state.selected_input])
                 end
-            elseif grid_ui_state.grid_mode == 5 then
+            elseif norns_mode == 5 then
                 -- Effects mode: Previous effect type
                 effects_mode_state.selected_effect = util.clamp(effects_mode_state.selected_effect - 1, 1, 2)
                 effects_mode_state.selected_param = 1 -- Reset param selection
@@ -1474,7 +1490,7 @@ function key(n, z)
                 if params:get("info_banner") == 2 then
                     info_banner_mod.show(effect_names[effects_mode_state.selected_effect])
                 end
-            elseif grid_ui_state.grid_mode == 6 then
+            elseif norns_mode == 6 then
                 -- Matrix mode: Go to selected position
                 local old_x = grid_ui_state.current_matrix_pos.x
                 local old_y = grid_ui_state.current_matrix_pos.y
@@ -1482,28 +1498,28 @@ function key(n, z)
                 if params:get("info_banner") == 2 then
                     info_banner_mod.show(string.format("POSITION %d,%d", selected_matrix_pos.x, selected_matrix_pos.y))
                 end
-            elseif grid_ui_state.grid_mode == 1 then
+            elseif norns_mode == 1 then
                 -- Reset levels to -12dB
                 for i = 1, #freqs do
                     params:set(string.format("band_%02d_level", i), -12)
                 end
                 -- Save to current snapshot
                 store_snapshot(current_snapshot)
-            elseif grid_ui_state.grid_mode == 2 then
+            elseif norns_mode == 2 then
                 -- Reset pans to center (0)
                 for i = 1, #freqs do
                     params:set(string.format("band_%02d_pan", i), 0)
                 end
                 -- Save to current snapshot
                 store_snapshot(current_snapshot)
-            elseif grid_ui_state.grid_mode == 3 then
+            elseif norns_mode == 3 then
                 -- Reset thresholds to 0.0 (all audio passes through)
                 for i = 1, #freqs do
                     params:set(string.format("band_%02d_thresh", i), 0.0)
                 end
                 -- Save to current snapshot
                 store_snapshot(current_snapshot)
-            elseif grid_ui_state.grid_mode == 4 then
+            elseif norns_mode == 4 then
                 -- Reset decimate to 48000 Hz (no decimation)
                 for i = 1, #freqs do
                     params:set(string.format("band_%02d_decimate", i), 48000)
@@ -1515,7 +1531,7 @@ function key(n, z)
             -- Key 3: Paste snapshot (with shift) or context-dependent action
             if grid_ui_state.shift_held then
                 paste_snapshot()
-            elseif grid_ui_state.grid_mode == 0 then
+            elseif norns_mode == 0 then
                 -- Inputs mode: Next input type
                 input_mode_state.selected_input = util.clamp(input_mode_state.selected_input + 1, 1, 5)
                 input_mode_state.selected_param = 1 -- Reset param selection
@@ -1524,7 +1540,7 @@ function key(n, z)
                 if params:get("info_banner") == 2 then
                     info_banner_mod.show(input_names[input_mode_state.selected_input])
                 end
-            elseif grid_ui_state.grid_mode == 5 then
+            elseif norns_mode == 5 then
                 -- Effects mode: Next effect type
                 effects_mode_state.selected_effect = util.clamp(effects_mode_state.selected_effect + 1, 1, 2)
                 effects_mode_state.selected_param = 1 -- Reset param selection
@@ -1533,11 +1549,11 @@ function key(n, z)
                 if params:get("info_banner") == 2 then
                     info_banner_mod.show(effect_names[effects_mode_state.selected_effect])
                 end
-            elseif grid_ui_state.grid_mode == 6 then
+            elseif norns_mode == 6 then
                 -- Matrix mode: Set selector to random position
                 selected_matrix_pos.x = math.random(1, 14)
                 selected_matrix_pos.y = math.random(1, 14)
-            elseif grid_ui_state.grid_mode == 1 then
+            elseif norns_mode == 1 then
                 -- Randomize levels (-60dB to +12dB)
                 for i = 1, #freqs do
                     local random_level = math.random(-60, 12)
@@ -1545,7 +1561,7 @@ function key(n, z)
                 end
                 -- Save to current snapshot
                 store_snapshot(current_snapshot)
-            elseif grid_ui_state.grid_mode == 2 then
+            elseif norns_mode == 2 then
                 -- Randomize pans (-1 to +1)
                 for i = 1, #freqs do
                     local random_pan = (math.random() - 0.5) * 2
@@ -1553,7 +1569,7 @@ function key(n, z)
                 end
                 -- Save to current snapshot
                 store_snapshot(current_snapshot)
-            elseif grid_ui_state.grid_mode == 3 then
+            elseif norns_mode == 3 then
                 -- Randomize thresholds (0.0 to 0.2)
                 for i = 1, #freqs do
                     local random_thresh = math.random() * 0.2 -- Returns value between 0.0 and 0.2
@@ -1561,7 +1577,7 @@ function key(n, z)
                 end
                 -- Save to current snapshot
                 store_snapshot(current_snapshot)
-            elseif grid_ui_state.grid_mode == 4 then
+            elseif norns_mode == 4 then
                 -- Randomize decimate rates (100 to 48000 Hz)
                 for i = 1, #freqs do
                     -- Random exponential value
@@ -1600,17 +1616,17 @@ function enc(n, d)
                 info_banner_mod.show("SNAPSHOT " .. snapshots_list[new_index])
             end
         else
-            -- Encoder 1: Switch between all 7 modes (inputs, levels, pans, thresholds, decimate, matrix, effects)
-            grid_ui_state.grid_mode = util.clamp(grid_ui_state.grid_mode + d, 0, 6)
+            -- Encoder 1: Switch between all 7 modes on Norns screen (independent from grid)
+            norns_mode = util.clamp(norns_mode + d, 0, 6)
 
             -- Show mode change banner
             if params:get("info_banner") == 2 then
-                local mode_name = mode_names[grid_ui_state.grid_mode + 1] or "unknown"
+                local mode_name = mode_names[norns_mode + 1] or "unknown"
                 info_banner_mod.show(mode_name)
             end
         end
     elseif n == 2 then
-        if grid_ui_state.grid_mode == 0 then
+        if norns_mode == 0 then
             -- Inputs mode: Select parameter within current input type
             local max_params = 1 -- Default for Live (only 1 param)
             local param_names = {}
@@ -1633,22 +1649,22 @@ function enc(n, d)
             end
 
             input_mode_state.selected_param = util.clamp(input_mode_state.selected_param + d, 1, max_params)
-        elseif grid_ui_state.grid_mode == 5 then
+        elseif norns_mode == 5 then
             -- Effects mode: Select parameter within current effect type
             local max_params = (effects_mode_state.selected_effect == 1) and 4 or 5
             effects_mode_state.selected_param = util.clamp(effects_mode_state.selected_param + d, 1, max_params)
-        elseif grid_ui_state.grid_mode == 6 then
+        elseif norns_mode == 6 then
             -- Matrix mode: Navigate X position
             selected_matrix_pos.x = selected_matrix_pos.x + d
             selected_matrix_pos.x = math.max(1, math.min(14, selected_matrix_pos.x))
-        elseif grid_ui_state.grid_mode >= 1 and grid_ui_state.grid_mode <= 4 then
+        elseif norns_mode >= 1 and norns_mode <= 4 then
             -- Other modes: Select band
             selected_band = selected_band + d
             -- Clamp to bounds: 1-16
             selected_band = math.max(1, math.min(#freqs, selected_band))
         end
     elseif n == 3 then
-        if grid_ui_state.grid_mode == 0 then
+        if norns_mode == 0 then
             -- Inputs mode: Adjust selected parameter (E3)
             if input_mode_state.selected_input == 1 then
                 -- Live: Audio In Level
@@ -1745,7 +1761,7 @@ function enc(n, d)
                     end
                 end
             end
-        elseif grid_ui_state.grid_mode == 5 then
+        elseif norns_mode == 5 then
             -- Effects mode: Adjust selected effect parameter
             if effects_mode_state.selected_effect == 1 then
                 -- Delay effect
@@ -1808,7 +1824,7 @@ function enc(n, d)
                     store_snapshot(current_snapshot)
                 end
             end
-        elseif grid_ui_state.grid_mode == 6 then
+        elseif norns_mode == 6 then
             -- Matrix mode: Navigate Y position or adjust glide
             if grid_ui_state.shift_held then
                 -- Shift + enc 3: Adjust glide time
@@ -1823,11 +1839,11 @@ function enc(n, d)
                 selected_matrix_pos.y = selected_matrix_pos.y + d
                 selected_matrix_pos.y = math.max(1, math.min(14, selected_matrix_pos.y))
             end
-        elseif grid_ui_state.grid_mode >= 1 and grid_ui_state.grid_mode <= 4 then
+        elseif norns_mode >= 1 and norns_mode <= 4 then
             -- Other modes: Adjust parameter for selected band
             if grid_ui_state.shift_held then
                 -- Shift held: Adjust all bands
-                if grid_ui_state.grid_mode == 1 then
+                if norns_mode == 1 then
                     -- Adjust all levels
                     local step = d * 0.5 -- 0.5dB per turn for levels
                     for i = 1, #freqs do
@@ -1835,7 +1851,7 @@ function enc(n, d)
                         local new_level = math.max(-60, math.min(12, current_level + step))
                         params:set(string.format("band_%02d_level", i), new_level)
                     end
-                elseif grid_ui_state.grid_mode == 2 then
+                elseif norns_mode == 2 then
                     -- Adjust all pans
                     local step = d * 0.01 -- 0.01 per turn for pan
                     for i = 1, #freqs do
@@ -1843,7 +1859,7 @@ function enc(n, d)
                         local new_pan = math.max(-1, math.min(1, current_pan + step))
                         params:set(string.format("band_%02d_pan", i), new_pan)
                     end
-                elseif grid_ui_state.grid_mode == 3 then
+                elseif norns_mode == 3 then
                     -- Adjust all thresholds
                     local step = d * 0.01 -- 0.01 per turn for thresholds (0.0-1.0 range)
                     for i = 1, #freqs do
@@ -1851,7 +1867,7 @@ function enc(n, d)
                         local new_thresh = math.max(0, math.min(1, current_thresh + step))
                         params:set(string.format("band_%02d_thresh", i), new_thresh)
                     end
-                elseif grid_ui_state.grid_mode == 4 then
+                elseif norns_mode == 4 then
                     -- Adjust all decimate rates
                     -- Use exponential steps for musical feel
                     local step = d * 500 -- 500 Hz steps
@@ -1867,7 +1883,7 @@ function enc(n, d)
                 -- No shift: Adjust selected band only
                 local band_idx = selected_band
 
-                if grid_ui_state.grid_mode == 1 then
+                if norns_mode == 1 then
                     -- Adjust level - faster steps for easier adjustment
                     local step = d * 0.5 -- 0.5dB per turn for levels
                     local current_level = params:get(string.format("band_%02d_level", band_idx))
@@ -1875,7 +1891,7 @@ function enc(n, d)
                     params:set(string.format("band_%02d_level", band_idx), new_level)
                     -- Save to current snapshot
                     store_snapshot(current_snapshot)
-                elseif grid_ui_state.grid_mode == 2 then
+                elseif norns_mode == 2 then
                     -- Adjust pan - fine control
                     local step = d * 0.01 -- 0.01 per turn for pan
                     local current_pan = params:get(string.format("band_%02d_pan", band_idx))
@@ -1883,7 +1899,7 @@ function enc(n, d)
                     params:set(string.format("band_%02d_pan", band_idx), new_pan)
                     -- Save to current snapshot
                     store_snapshot(current_snapshot)
-                elseif grid_ui_state.grid_mode == 3 then
+                elseif norns_mode == 3 then
                     -- Adjust threshold - fine control
                     local step = d * 0.01 -- 0.01 per turn for thresholds (0.0-1.0 range)
                     local current_thresh = params:get(string.format("band_%02d_thresh", band_idx))
@@ -1891,7 +1907,7 @@ function enc(n, d)
                     params:set(string.format("band_%02d_thresh", band_idx), new_thresh)
                     -- Save to current snapshot
                     store_snapshot(current_snapshot)
-                elseif grid_ui_state.grid_mode == 4 then
+                elseif norns_mode == 4 then
                     -- Adjust decimate rate
                     local step = d * 500 -- 500 Hz steps
                     local current_rate = params:get(string.format("band_%02d_decimate", band_idx))

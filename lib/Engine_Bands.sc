@@ -729,22 +729,34 @@ Engine_Bands : CroneEngine {
 
     // ---- Teardown ------------------------------------------------------------
     free {
+        // Free synths first (in reverse order of creation)
         if(~finalLimiter.notNil) { ~finalLimiter.free; ~finalLimiter = nil; };
         if(~eqFx.notNil) { ~eqFx.free; ~eqFx = nil; };
         if(~delayFx.notNil) { ~delayFx.free; ~delayFx = nil; };
-        if(~audioInSource.notNil) { ~audioInSource.free; ~audioInSource = nil; };
-        if(~noiseSource.notNil) { ~noiseSource.free; ~noiseSource = nil; };
-        if(~dustSource.notNil) { ~dustSource.free; ~dustSource = nil; };
-        if(~oscSource.notNil) { ~oscSource.free; ~oscSource = nil; };
+        if(~bands.notNil) { ~bands.do({ |x| if(x.notNil) { x.free } }); ~bands = nil; };
         if(~fileSource.notNil) { ~fileSource.free; ~fileSource = nil; };
-        if(~bands.notNil) { ~bands.do({ |x| x.free }); ~bands = nil; };
+        if(~oscSource.notNil) { ~oscSource.free; ~oscSource = nil; };
+        if(~dustSource.notNil) { ~dustSource.free; ~dustSource = nil; };
+        if(~noiseSource.notNil) { ~noiseSource.free; ~noiseSource = nil; };
+        if(~audioInSource.notNil) { ~audioInSource.free; ~audioInSource = nil; };
+        
+        // Free group after all synths
         if(~bandGroup.notNil) { ~bandGroup.free; ~bandGroup = nil; };
+        
+        // Free buffers
+        if(~fileBuffer.notNil) { ~fileBuffer.free; ~fileBuffer = nil; };
+        
+        // Free buses
         if(~eqBus.notNil) { ~eqBus.free; ~eqBus = nil; };
         if(~delayBus.notNil) { ~delayBus.free; ~delayBus = nil; };
         if(~sumBus.notNil) { ~sumBus.free; ~sumBus = nil; };
         if(~inputBus.notNil) { ~inputBus.free; ~inputBus = nil; };
-        if(~fileBuffer.notNil) { ~fileBuffer.free; ~fileBuffer = nil; };
         if(~meterBuses.notNil) { ~meterBuses.do({ |b| if(b.notNil) { b.free } }); ~meterBuses = nil; };
+        
+        // Clean up function references
+        ~setBandParam = nil;
+        ~meterPollNames = nil;
+        
         super.free;
     }
 }

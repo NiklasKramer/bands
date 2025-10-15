@@ -213,7 +213,7 @@ function Helper.set_band_param(band_idx, param_type, value, shift_held, freqs, f
 
     -- Auto-save to current snapshot if requested
     if save_to_snapshot and current_snapshot then
-        save_to_snapshot(current_snapshot)
+        save_to_snapshot(current_snapshot, "grid") -- Always from grid in helper
     end
 end
 

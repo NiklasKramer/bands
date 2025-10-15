@@ -26,7 +26,7 @@ function Path.toggle_path_mode()
 
     -- Show info banner
     if Path.show_banner then
-        Path.show_banner(path_state.mode and "PATH MODE: ON" or "PATH MODE: OFF")
+        Path.show_banner(path_state.mode and "GRID: PATH MODE ON" or "GRID: PATH MODE OFF")
     end
 end
 
@@ -47,13 +47,13 @@ function Path.toggle_path_recording()
         path_state.current_point = 1
         Path.start_path_playback()
         if Path.show_banner then
-            Path.show_banner("PATH PLAYING")
+            Path.show_banner("GRID: PATH PLAYING")
         end
     else
         -- Stop playback
         Path.stop_path_playback()
         if Path.show_banner then
-            Path.show_banner("PATH STOPPED")
+            Path.show_banner("GRID: PATH STOPPED")
         end
     end
 
