@@ -12,7 +12,8 @@ function GridUI.init(grid_device, freqs, mode_names)
         grid_mode = 0, -- 0=inputs, 1=levels, 2=pans, 3=thresholds, 4=decimate, 5=matrix
         shift_held = false,
         band_meters = {},
-        current_matrix_pos = { x = 1, y = 1 } -- Start at snapshot A (top-left)
+        current_matrix_pos = { x = 1, y = 1 }, -- Start at snapshot A (top-left)
+        current_state_mode = false
     }
 
     return state
@@ -80,6 +81,8 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
         if y == 16 then
             if x >= 1 and x <= 4 then
                 ui_state.grid_mode = x -- Modes 1-4: LEVELS, PANS, THRESHOLDS, DECIMATE
+                -- Sync Norns mode with grid mode when not in matrix
+                _G.norns_mode = x
                 if redraw_screen_callback then redraw_screen_callback() end
                 if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
                 -- Show info banner for mode change
@@ -88,30 +91,60 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                 end
             elseif x == 7 then
                 if ui_state.shift_held then
-                    snapshot_functions.save_snapshot("A", "grid")
+                    -- Toggle current state mode
+                    ui_state.current_state_mode = not ui_state.current_state_mode
+                    if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
+                    if snapshot_functions.show_banner then
+                        snapshot_functions.show_banner(ui_state.current_state_mode and "GRID: CURRENT STATE ON" or
+                        "GRID: CURRENT STATE OFF")
+                    end
                 else
-                    snapshot_functions.switch_to_snapshot("A")
+                    if snapshot_functions.select_snapshot then
+                        snapshot_functions.select_snapshot("A")
+                    end
                 end
             elseif x == 8 then
                 if ui_state.shift_held then
-                    snapshot_functions.save_snapshot("B", "grid")
+                    ui_state.current_state_mode = not ui_state.current_state_mode
+                    if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
+                    if snapshot_functions.show_banner then
+                        snapshot_functions.show_banner(ui_state.current_state_mode and "GRID: CURRENT STATE ON" or
+                        "GRID: CURRENT STATE OFF")
+                    end
                 else
-                    snapshot_functions.switch_to_snapshot("B")
+                    if snapshot_functions.select_snapshot then
+                        snapshot_functions.select_snapshot("B")
+                    end
                 end
             elseif x == 9 then
                 if ui_state.shift_held then
-                    snapshot_functions.save_snapshot("C", "grid")
+                    ui_state.current_state_mode = not ui_state.current_state_mode
+                    if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
+                    if snapshot_functions.show_banner then
+                        snapshot_functions.show_banner(ui_state.current_state_mode and "GRID: CURRENT STATE ON" or
+                        "GRID: CURRENT STATE OFF")
+                    end
                 else
-                    snapshot_functions.switch_to_snapshot("C")
+                    if snapshot_functions.select_snapshot then
+                        snapshot_functions.select_snapshot("C")
+                    end
                 end
             elseif x == 10 then
                 if ui_state.shift_held then
-                    snapshot_functions.save_snapshot("D", "grid")
+                    ui_state.current_state_mode = not ui_state.current_state_mode
+                    if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
+                    if snapshot_functions.show_banner then
+                        snapshot_functions.show_banner(ui_state.current_state_mode and "GRID: CURRENT STATE ON" or
+                        "GRID: CURRENT STATE OFF")
+                    end
                 else
-                    snapshot_functions.switch_to_snapshot("D")
+                    if snapshot_functions.select_snapshot then
+                        snapshot_functions.select_snapshot("D")
+                    end
                 end
             elseif x == 14 then
                 ui_state.grid_mode = 6 -- Matrix is now mode 6 (after EFFECTS at mode 5)
+                -- Do not sync Norns mode when entering matrix (decoupled)
                 if redraw_screen_callback then redraw_screen_callback() end
                 if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
                 -- Show info banner for matrix mode

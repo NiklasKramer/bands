@@ -1,6 +1,6 @@
 # bands
 
-**Version 0.5** - Ready for testing
+**Version 0.6** - Snapshot independence & current state mode
 
 A spectral processing instrument for norns, inspired by the Buchla 296e Spectral Processor.
 
@@ -34,7 +34,7 @@ The Buchla 296e Spectral Processor split incoming audio into 16 frequency bands,
 ### Input Sources (Norns Screen Only)
 
 - **I** - Audio Input: Live stereo input
-- **~** - Oscillator: Complex Buchla-inspired oscillator with FM modulation
+- **~** - Oscillator: Complex Buchla-inspired oscillator with FM modulation (Level, Freq, Timbre, Morph, Mod Rate, Mod Depth)
 - **.** - Dust: Random impulses with adjustable density
 - **\*** - Noise: Pink noise with optional LFO modulation
 - **>** - File: Audio file playback with speed control
@@ -56,16 +56,40 @@ The Buchla 296e Spectral Processor split incoming audio into 16 frequency bands,
 ### Snapshot System
 
 - **4 snapshots** (A, B, C, D): Store complete parameter states
+- **Two viewing modes**:
+  - **Snapshot Mode** (default): View and edit any snapshot independently from matrix position
+  - **Current State Mode**: View live blended values from matrix position (editing disabled)
 - **Matrix morphing**: Blend between all four snapshots using X/Y position
 - **Path recording**: Record and loop matrix movements for automation
 - **Glide**: Smooth parameter transitions when moving in the matrix
 - **Copy/Paste**: Copy and paste snapshots with Shift + Key 2/3 for quick parameter duplication
 
+#### Snapshot Mode vs Current State Mode
+
+**Snapshot Mode** (default):
+
+- Select any snapshot (A/B/C/D) to view and edit
+- Selection is independent from matrix position
+- Edit from anywhere - no restrictions
+- Sound reflects matrix blend, display shows selected snapshot
+
+**Current State Mode**:
+
+- All snapshot indicators bright (viewing live blend)
+- Display shows current blended values from matrix position
+- Editing disabled (view-only)
+- Perfect for monitoring what you're hearing
+
+Toggle with:
+
+- **Grid**: Shift + any snapshot key (A/B/C/D)
+- **Norns**: Shift + Enc 2
+
 ## Controls
 
 ### Norns
 
-**Encoder 1**: Switch between modes
+**Encoder 1**: Switch between modes (synced with Grid keys 1-4)
 
 - INPUTS → LEVELS → PANS → THRESHOLDS → DECIMATE → EFFECTS → MATRIX
 
@@ -76,6 +100,8 @@ The Buchla 296e Spectral Processor split incoming audio into 16 frequency bands,
 - In INPUTS/EFFECTS: Select parameter
 - In band modes: Select band (1-16)
 - In MATRIX: Navigate X position
+
+**Encoder 2 + Shift**: Toggle Current State Mode (view/edit toggle)
 
 **Encoder 3**: Adjust value
 
@@ -107,12 +133,13 @@ The Buchla 296e Spectral Processor split incoming audio into 16 frequency bands,
 
 **Row 16 (Bottom Control Row)**:
 
-- **Keys 1-4**: Switch between band modes (LEVELS, PANS, THRESHOLDS, DECIMATE)
+- **Keys 1-4**: Switch between band modes (LEVELS, PANS, THRESHOLDS, DECIMATE) - synced with Norns
 - **Keys 7-10**: Snapshot buttons (A, B, C, D)
-  - Press: Switch to snapshot
-  - Shift + Press: Save current state to snapshot
-  - Brightness: Shows blend weight from current matrix position
-- **Key 14**: Switch to MATRIX mode
+  - Press: Select snapshot for viewing/editing
+  - Shift + Press: Toggle Current State Mode
+  - Brightness in Snapshot Mode: Selected snapshot is bright, others dim
+  - Brightness in Current State Mode: All bright (viewing live blend)
+- **Key 14**: Switch to MATRIX mode (Grid-only, not synced)
 - **Key 16**: Shift (hold for alternate functions)
 
 **Band Modes (Modes 1-4)**:
@@ -177,11 +204,14 @@ Each snapshot stores:
 
 ### Snapshot Morphing
 
-1. Create snapshot A: Set all parameters, Shift + Grid key 7 to save
-2. Change all parameters dramatically
-3. Create snapshot B: Shift + Grid key 8 to save
-4. Switch to **MATRIX** mode (Grid key 14)
-5. Move around the grid - hear parameters morph!
+1. Select snapshot A (Grid key 7 or Shift + Enc 1)
+2. Edit parameters in any mode - changes save to A automatically
+3. Select snapshot B (Grid key 8)
+4. Edit parameters - these save to B
+5. Repeat for C and D to create four distinct sonic states
+6. Switch to **MATRIX** mode (Grid key 14)
+7. Move around the grid - hear all parameters morph!
+8. Optional: Enable Current State Mode (Shift + Enc 2) to see live blended values
 
 ### Path Recording
 
@@ -202,11 +232,13 @@ Each snapshot stores:
 ## Tips
 
 - **Start simple**: Use one input source, adjust levels, then experiment
-- **Use snapshots**: They're perfect for A/B comparisons and live performance
+- **Snapshot workflow**: Select a snapshot, edit freely, changes save automatically - no corner restrictions!
+- **Current State Mode**: Perfect for monitoring what you're hearing while moving through the matrix
+- **Use copy/paste**: Quickly duplicate snapshots and make variations (Shift + Key 2/3)
 - **Try path recording**: Great for evolving textures and automation
 - **Combine effects**: File playback + threshold gating + delay = glitch heaven
 - **Watch the meters**: Visual feedback shows which bands are active
-- **Info banners**: Enable in PARAMS > Info Banner for helpful feedback
+- **Grid/Norns sync**: Band modes stay in sync between Grid and Norns for seamless workflow
 
 ## Signal Flow
 

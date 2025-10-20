@@ -169,9 +169,13 @@ end
 
 -- Draw parameter indicators
 function GridDraw.draw_parameter_indicators(g, col, i)
+    -- Draw from snapshot or live values depending on mode
+    local snapshot_name = string.lower(get_current_snapshot())
+    local use_live = grid_ui_state.current_state_mode == true
     if grid_ui_state.grid_mode == 1 then
         -- Get level from current state (passed as dependency)
-        local level_db = params:get(string.format("band_%02d_level", i))
+        local level_db = use_live and params:get(string.format("band_%02d_level", i)) or
+            params:get(string.format("snapshot_%s_%02d_level", snapshot_name, i))
         local level_y = util.round((6 - level_db) * 14 / 66 + 1)
         level_y = util.clamp(level_y, 1, 15)
         for y = level_y, 15 do
@@ -179,20 +183,23 @@ function GridDraw.draw_parameter_indicators(g, col, i)
         end
     elseif grid_ui_state.grid_mode == 2 then
         -- Get pan from current state (passed as dependency)
-        local pan = params:get(string.format("band_%02d_pan", i))
+        local pan = use_live and params:get(string.format("band_%02d_pan", i)) or
+            params:get(string.format("snapshot_%s_%02d_pan", snapshot_name, i))
         local pan_y = util.round(pan * 7 + 8)
         pan_y = util.clamp(pan_y, 1, 15)
         g:led(col, pan_y, 8)
     elseif grid_ui_state.grid_mode == 3 then
         -- Get threshold from current state (passed as dependency)
-        local thresh = params:get(string.format("band_%02d_thresh", i))
+        local thresh = use_live and params:get(string.format("band_%02d_thresh", i)) or
+            params:get(string.format("snapshot_%s_%02d_thresh", snapshot_name, i))
         -- Scale 0-0.2 range to full grid (1-15)
         local thresh_y = util.round((thresh / 0.2) * 14 + 1)
         thresh_y = util.clamp(thresh_y, 1, 15)
         g:led(col, thresh_y, 4)
     elseif grid_ui_state.grid_mode == 4 then
         -- Get decimate rate from current state
-        local rate = params:get(string.format("band_%02d_decimate", i))
+        local rate = use_live and params:get(string.format("band_%02d_decimate", i)) or
+            params:get(string.format("snapshot_%s_%02d_decimate", snapshot_name, i))
         -- Convert rate to row using inverse exponential
         local normalized = -math.log(rate / 48000) / 6.2
         local decimate_y = util.round(normalized * 14 + 1)
@@ -370,17 +377,18 @@ function GridDraw.draw_snapshot_buttons(g)
     local snapshot_buttons = { 7, 8, 9, 10 }
     local snapshot_names = { "A", "B", "C", "D" }
 
-    -- Get blend weights from current matrix position
-    local a_w, b_w, c_w, d_w = calculate_blend_weights(
-        grid_ui_state.current_matrix_pos.x,
-        grid_ui_state.current_matrix_pos.y
-    )
-    local weights = { a_w, b_w, c_w, d_w }
-
-    for i, x in ipairs(snapshot_buttons) do
-        -- Map weight (0-1) to brightness (4-15)
-        local weight_brightness = math.floor(4 + weights[i] * 11)
-        g:led(x, 16, weight_brightness)
+    if grid_ui_state.current_state_mode then
+        -- Current state mode: show all buttons at full brightness
+        for i, x in ipairs(snapshot_buttons) do
+            g:led(x, 16, 15)
+        end
+    else
+        -- Normal mode: show selected snapshot highlighted
+        local selected = get_current_snapshot()
+        for i, x in ipairs(snapshot_buttons) do
+            local brightness = (snapshot_names[i] == selected) and 15 or 4
+            g:led(x, 16, brightness)
+        end
     end
 end
 

@@ -90,8 +90,18 @@ local snapshots = {
     D = { name = "Snapshot D", params = {} }
 }
 
--- Get current snapshot based on matrix position
+-- Selected snapshot (independent of matrix position when current_state_mode is OFF)
+local selected_snapshot = "A"
+
+-- Get snapshot based on mode:
+-- When current_state_mode is OFF: return selected_snapshot (decoupled)
+-- When current_state_mode is ON: derive from matrix position
 local function get_current_snapshot_from_position()
+    if not grid_ui_state.current_state_mode then
+        return selected_snapshot
+    end
+
+    -- In current state mode, derive from position
     local x = grid_ui_state.current_matrix_pos.x
     local y = grid_ui_state.current_matrix_pos.y
 
@@ -665,7 +675,19 @@ function apply_blend(x, y, old_x, old_y)
     end
 end
 
--- Switch to a snapshot
+-- Select a snapshot (without moving matrix - for when current_state_mode is OFF)
+local function select_snapshot(snapshot_name)
+    selected_snapshot = snapshot_name
+    -- Recall the snapshot to load its values into live parameters
+    recall_snapshot(snapshot_name)
+    redraw()
+    redraw_grid()
+    if params:get("info_banner") == 2 then
+        info_banner_mod.show("SNAPSHOT " .. snapshot_name)
+    end
+end
+
+-- Switch to a snapshot (moves matrix position)
 local function switch_to_snapshot(snapshot_name)
     -- Switch to snapshot moves matrix position to the corner
     -- Current snapshot is then derived from that position
@@ -830,6 +852,7 @@ function grid.key(x, y, z)
         store_snapshot = store_snapshot,
         save_snapshot = save_snapshot,
         recall_snapshot = recall_snapshot,
+        select_snapshot = select_snapshot,
         switch_to_snapshot = switch_to_snapshot,
         apply_blend = apply_blend,
         calculate_blend_weights = calculate_blend_weights,
@@ -856,28 +879,32 @@ end
 
 -- Helper function to draw snapshot letters with blend weights
 local function draw_snapshot_letters()
-    -- Get blend weights from current matrix position
-    local a_w, b_w, c_w, d_w = calculate_blend_weights(
-        grid_ui_state.current_matrix_pos.x,
-        grid_ui_state.current_matrix_pos.y
-    )
-
     -- Position on right side of screen (stacked vertically)
     local MARGIN_RIGHT = 8
     local letter_x = 128 - MARGIN_RIGHT
     local letters = { "A", "B", "C", "D" }
-    local weights = { a_w, b_w, c_w, d_w }
     local letter_spacing = 12
     local start_y = 20
 
-    -- Draw each letter with brightness based on weight
     screen.font_face(1)
     screen.font_size(8)
-    for i = 1, 4 do
-        local brightness = math.floor(weights[i] * 15)
-        screen.level(brightness)
-        screen.move(letter_x, start_y + (i - 1) * letter_spacing)
-        screen.text(letters[i])
+
+    if grid_ui_state.current_state_mode then
+        -- Current state mode: show all letters at full brightness
+        for i = 1, 4 do
+            screen.level(15)
+            screen.move(letter_x, start_y + (i - 1) * letter_spacing)
+            screen.text(letters[i])
+        end
+    else
+        -- Normal mode: show selected snapshot highlighted
+        local selected = get_current_snapshot_from_position()
+        for i = 1, 4 do
+            local brightness = (letters[i] == selected) and 15 or 4
+            screen.level(brightness)
+            screen.move(letter_x, start_y + (i - 1) * letter_spacing)
+            screen.text(letters[i])
+        end
     end
 end
 
@@ -945,14 +972,16 @@ function redraw()
             local osc_timbre = params:get("osc_timbre")
             local osc_warp = params:get("osc_warp")
             local osc_mod_rate = params:get("osc_mod_rate")
+            local osc_mod_depth = params:get("osc_mod_depth")
 
-            local param_names = { "LEVEL", "FREQ", "TIMBRE", "MORPH", "MOD RATE" }
+            local param_names = { "LEVEL", "FREQ", "TIMBRE", "MORPH", "MOD RATE", "MOD DEPTH" }
             local param_values = {
                 string.format("%.2f", osc_level),
                 string.format("%.1f Hz", osc_freq),
                 string.format("%.2f", osc_timbre),
                 string.format("%.2f", osc_warp),
-                string.format("%.1f Hz", osc_mod_rate)
+                string.format("%.1f Hz", osc_mod_rate),
+                string.format("%.2f", osc_mod_depth)
             }
 
             -- Display current parameter name
@@ -969,11 +998,11 @@ function redraw()
             screen.move(content_x, 45)
             screen.text_center(param_values[input_mode_state.selected_param])
 
-            -- Parameter indicator (5 dots, current one bright, centered)
+            -- Parameter indicator (6 dots, current one bright, centered)
             local dot_spacing = 6
-            local dots_width = 5 * dot_spacing - dot_spacing
+            local dots_width = 6 * dot_spacing - dot_spacing
             local dot_start_x = (128 - dots_width) / 2
-            for i = 1, 5 do
+            for i = 1, 6 do
                 local brightness = (i == input_mode_state.selected_param) and 15 or 4
                 screen.level(brightness)
                 screen.circle(dot_start_x + (i - 1) * dot_spacing, 54, 1.5)
@@ -1106,7 +1135,8 @@ function redraw()
         for i = 1, num_bands do
             local x = start_x + (i - 1) * meter_spacing
             local meter_v = band_meters[i] or 0
-            local level_db = params:get(string.format("band_%02d_level", i))
+            local snapshot_name = string.lower(get_current_snapshot_from_position())
+            local level_db = params:get(string.format("snapshot_%s_%02d_level", snapshot_name, i))
 
             -- Convert level to meter height
             local level_height = math.max(0, (level_db + 60) * meter_height / 72) -- -60dB to +12dB range
@@ -1164,7 +1194,8 @@ function redraw()
 
         for i = 1, num_bands do
             local x = start_x + (i - 1) * indicator_spacing
-            local pan = params:get(string.format("band_%02d_pan", i))
+            local snapshot_name = string.lower(get_current_snapshot_from_position())
+            local pan = params:get(string.format("snapshot_%s_%02d_pan", snapshot_name, i))
 
             -- Convert pan (-1 to 1) to position (0 to indicator_height)
             -- Invert so left pan (-1) is at top, right pan (+1) is at bottom
@@ -1209,7 +1240,8 @@ function redraw()
 
         for i = 1, num_bands do
             local x = start_x + (i - 1) * indicator_spacing
-            local thresh = params:get(string.format("band_%02d_thresh", i))
+            local snapshot_name = string.lower(get_current_snapshot_from_position())
+            local thresh = params:get(string.format("snapshot_%s_%02d_thresh", snapshot_name, i))
 
             -- Convert threshold (0.0 to 0.2) to position (0 to indicator_height)
             -- Higher thresholds appear higher on screen
@@ -1249,7 +1281,8 @@ function redraw()
 
         for i = 1, num_bands do
             local x = start_x + (i - 1) * indicator_spacing
-            local rate = params:get(string.format("band_%02d_decimate", i))
+            local snapshot_name = string.lower(get_current_snapshot_from_position())
+            local rate = params:get(string.format("snapshot_%s_%02d_decimate", snapshot_name, i))
 
             -- Convert rate (100 to 48000 Hz) to position using exponential scale
             -- Lower rates (more decimation) appear lower on screen
@@ -1540,15 +1573,13 @@ function key(n, z)
                     info_banner_mod.show(string.format("POSITION %d,%d", selected_matrix_pos.x, selected_matrix_pos.y))
                 end
             elseif norns_mode >= 1 and norns_mode <= 4 then
-                -- Band modes: Reset functions (require being at corner)
-                local at_corner = is_at_snapshot_corner(grid_ui_state.current_matrix_pos.x,
-                    grid_ui_state.current_matrix_pos.y)
-                if not at_corner then
+                if grid_ui_state.current_state_mode then
                     if params:get("info_banner") == 2 then
-                        info_banner_mod.show("MOVE TO CORNER TO EDIT")
+                        info_banner_mod.show("CURRENT STATE MODE - EDITS DISABLED")
                     end
                     return
                 end
+                -- Band modes: Reset functions
 
                 if norns_mode == 1 then
                     -- Reset levels to -12dB
@@ -1603,15 +1634,13 @@ function key(n, z)
                 selected_matrix_pos.x = math.random(1, 14)
                 selected_matrix_pos.y = math.random(1, 14)
             elseif norns_mode >= 1 and norns_mode <= 4 then
-                -- Band modes: Randomize functions (require being at corner)
-                local at_corner = is_at_snapshot_corner(grid_ui_state.current_matrix_pos.x,
-                    grid_ui_state.current_matrix_pos.y)
-                if not at_corner then
+                if grid_ui_state.current_state_mode then
                     if params:get("info_banner") == 2 then
-                        info_banner_mod.show("MOVE TO CORNER TO EDIT")
+                        info_banner_mod.show("CURRENT STATE MODE - EDITS DISABLED")
                     end
                     return
                 end
+                -- Band modes: Randomize functions
 
                 if norns_mode == 1 then
                     -- Randomize levels (-60dB to +12dB)
@@ -1652,7 +1681,7 @@ end
 function enc(n, d)
     if n == 1 then
         if grid_ui_state.shift_held then
-            -- Shift + Encoder 1: Switch snapshots
+            -- Shift + Encoder 1: Switch/Select snapshots
             local snapshots_list = { "A", "B", "C", "D" }
             local current_snapshot = get_current_snapshot_from_position()
             local current_index = 1
@@ -1667,15 +1696,26 @@ function enc(n, d)
             if new_index < 1 then new_index = 4 end
             if new_index > 4 then new_index = 1 end
 
-            switch_to_snapshot(snapshots_list[new_index])
-
-            -- Show snapshot change banner
-            if params:get("info_banner") == 2 then
-                info_banner_mod.show("SNAPSHOT " .. snapshots_list[new_index])
+            -- Use select_snapshot when current_state_mode is OFF, switch_to_snapshot when ON
+            if grid_ui_state.current_state_mode then
+                switch_to_snapshot(snapshots_list[new_index])
+            else
+                select_snapshot(snapshots_list[new_index])
             end
         else
-            -- Encoder 1: Switch between all 7 modes on Norns screen (independent from grid)
+            -- Encoder 1: Switch between modes; keep grid in sync except for matrix
+            local old_mode = norns_mode
             norns_mode = util.clamp(norns_mode + d, 0, 6)
+            if norns_mode ~= old_mode then
+                if norns_mode >= 1 and norns_mode <= 4 then
+                    grid_ui_state.grid_mode = norns_mode
+                elseif norns_mode == 6 then
+                    -- Don't force grid into matrix; leave as-is
+                elseif norns_mode == 0 or norns_mode == 5 then
+                    -- Inputs/Effects have no direct grid mode; leave grid mode unchanged
+                end
+                redraw_grid()
+            end
 
             -- Show mode change banner
             if params:get("info_banner") == 2 then
@@ -1684,7 +1724,15 @@ function enc(n, d)
             end
         end
     elseif n == 2 then
-        if norns_mode == 0 then
+        if grid_ui_state.shift_held then
+            -- Shift + Encoder 2: Toggle current state mode
+            grid_ui_state.current_state_mode = not grid_ui_state.current_state_mode
+            redraw()
+            redraw_grid()
+            if params:get("info_banner") == 2 then
+                info_banner_mod.show(grid_ui_state.current_state_mode and "CURRENT STATE ON" or "CURRENT STATE OFF")
+            end
+        elseif norns_mode == 0 then
             -- Inputs mode: Select parameter within current input type
             local max_params = 1 -- Default for Live (only 1 param)
             local param_names = {}
@@ -1693,8 +1741,8 @@ function enc(n, d)
                 max_params = 1
                 param_names = { "LEVEL" }
             elseif input_mode_state.selected_input == 2 then
-                max_params = 5
-                param_names = { "LEVEL", "FREQ", "TIMBRE", "MORPH", "MOD RATE" }
+                max_params = 6
+                param_names = { "LEVEL", "FREQ", "TIMBRE", "MORPH", "MOD RATE", "MOD DEPTH" }
             elseif input_mode_state.selected_input == 3 then
                 max_params = 2
                 param_names = { "LEVEL", "DENSITY" }
@@ -1722,20 +1770,14 @@ function enc(n, d)
             selected_band = math.max(1, math.min(#freqs, selected_band))
         end
     elseif n == 3 then
-        -- Allow Enc 3 freely on matrix screen; otherwise enforce corner-only edits
-        if norns_mode ~= 6 then
-            -- Check if we're at a snapshot corner before allowing edits
-            local at_corner = is_at_snapshot_corner(grid_ui_state.current_matrix_pos.x,
-                grid_ui_state.current_matrix_pos.y)
-
-            if not at_corner then
-                -- Not at a corner - show warning and block edits
-                if params:get("info_banner") == 2 then
-                    info_banner_mod.show("MOVE TO CORNER TO EDIT")
-                end
-                return
+        -- Block edits globally when current state mode is ON
+        if grid_ui_state.current_state_mode then
+            if params:get("info_banner") == 2 then
+                info_banner_mod.show("CURRENT STATE MODE - EDITS DISABLED")
             end
+            return
         end
+        -- Allow Enc 3 freely - no corner restrictions when current_state_mode is OFF
 
         if norns_mode == 0 then
             -- Inputs mode: Adjust selected parameter (E3)
@@ -1772,6 +1814,11 @@ function enc(n, d)
                     local new_val = util.clamp(current * math.exp(d * 0.05), 0.1, 100)
                     params:set("osc_mod_rate", new_val)
                     store_snapshot(get_current_snapshot_from_position())
+                elseif input_mode_state.selected_param == 6 then
+                    local current = params:get("osc_mod_depth")
+                    local new_val = util.clamp(current + d * 0.01, 0, 1)
+                    params:set("osc_mod_depth", new_val)
+                    store_snapshot(get_current_snapshot_from_position())
                 end
             elseif input_mode_state.selected_input == 3 then
                 -- Dust: Adjust selected parameter
@@ -1782,7 +1829,11 @@ function enc(n, d)
                     store_snapshot(get_current_snapshot_from_position())
                 elseif input_mode_state.selected_param == 2 then
                     local current = params:get("dust_density")
-                    local new_val = util.clamp(current + d * 10, 1, 1000)
+                    -- Use exponential scaling with clamped minimum step of 1 Hz
+                    local new_val = math.floor(util.clamp(current * math.exp(d * 0.02), 1, 1000) + 0.5)
+                    if new_val == current then
+                        new_val = util.clamp(current + (d > 0 and 1 or -1), 1, 1000)
+                    end
                     params:set("dust_density", new_val)
                     store_snapshot(get_current_snapshot_from_position())
                 end

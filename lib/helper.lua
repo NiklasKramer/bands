@@ -219,62 +219,57 @@ end
 
 -- Check if at snapshot corner
 local function is_at_snapshot_corner(x, y)
-    return (x == 1 and y == 1) or   -- A
-           (x == 14 and y == 1) or  -- B
-           (x == 1 and y == 14) or  -- C
-           (x == 14 and y == 14)    -- D
+    return (x == 1 and y == 1) or -- A
+        (x == 14 and y == 1) or   -- B
+        (x == 1 and y == 14) or   -- C
+        (x == 14 and y == 14)     -- D
 end
 
 -- Mode-specific handlers
-function Helper.handle_level_mode(band_idx, y, shift_held, freqs, save_to_snapshot, current_snapshot, set_selected_band, ui_state, show_banner)
-    -- Check if at corner before allowing edits
-    if ui_state and not is_at_snapshot_corner(ui_state.current_matrix_pos.x, ui_state.current_matrix_pos.y) then
-        if show_banner then
-            show_banner("GRID: MOVE TO CORNER TO EDIT")
-        end
+function Helper.handle_level_mode(band_idx, y, shift_held, freqs, save_to_snapshot, current_snapshot, set_selected_band,
+                                  ui_state, show_banner)
+    -- Block edits if current state mode is active
+    if ui_state and ui_state.current_state_mode then
+        if show_banner then show_banner("GRID: CURRENT STATE MODE - EDITS DISABLED") end
         return
     end
-    
+
     local level_db = Helper.row_to_level_db(y)
     Helper.set_band_param(band_idx, "level", level_db, shift_held, freqs, "%.1f dB", save_to_snapshot, current_snapshot)
     if set_selected_band then set_selected_band(band_idx) end
 end
 
 function Helper.handle_pan_mode(band_idx, y, shift_held, freqs, save_to_snapshot, current_snapshot, ui_state, show_banner)
-    -- Check if at corner before allowing edits
-    if ui_state and not is_at_snapshot_corner(ui_state.current_matrix_pos.x, ui_state.current_matrix_pos.y) then
-        if show_banner then
-            show_banner("GRID: MOVE TO CORNER TO EDIT")
-        end
+    -- Block edits if current state mode is active
+    if ui_state and ui_state.current_state_mode then
+        if show_banner then show_banner("GRID: CURRENT STATE MODE - EDITS DISABLED") end
         return
     end
-    
+
     local pan = Helper.row_to_pan(y)
     Helper.set_band_param(band_idx, "pan", pan, shift_held, freqs, "%.2f", save_to_snapshot, current_snapshot)
 end
 
-function Helper.handle_threshold_mode(band_idx, y, shift_held, freqs, save_to_snapshot, current_snapshot, ui_state, show_banner)
-    -- Check if at corner before allowing edits
-    if ui_state and not is_at_snapshot_corner(ui_state.current_matrix_pos.x, ui_state.current_matrix_pos.y) then
-        if show_banner then
-            show_banner("GRID: MOVE TO CORNER TO EDIT")
-        end
+function Helper.handle_threshold_mode(band_idx, y, shift_held, freqs, save_to_snapshot, current_snapshot, ui_state,
+                                      show_banner)
+    -- Block edits if current state mode is active
+    if ui_state and ui_state.current_state_mode then
+        if show_banner then show_banner("GRID: CURRENT STATE MODE - EDITS DISABLED") end
         return
     end
-    
+
     local thresh = Helper.row_to_threshold(y)
     Helper.set_band_param(band_idx, "thresh", thresh, shift_held, freqs, "%.2f", save_to_snapshot, current_snapshot)
 end
 
-function Helper.handle_decimate_mode(band_idx, y, shift_held, freqs, save_to_snapshot, current_snapshot, ui_state, show_banner)
-    -- Check if at corner before allowing edits
-    if ui_state and not is_at_snapshot_corner(ui_state.current_matrix_pos.x, ui_state.current_matrix_pos.y) then
-        if show_banner then
-            show_banner("GRID: MOVE TO CORNER TO EDIT")
-        end
+function Helper.handle_decimate_mode(band_idx, y, shift_held, freqs, save_to_snapshot, current_snapshot, ui_state,
+                                     show_banner)
+    -- Block edits if current state mode is active
+    if ui_state and ui_state.current_state_mode then
+        if show_banner then show_banner("GRID: CURRENT STATE MODE - EDITS DISABLED") end
         return
     end
-    
+
     local rate = Helper.row_to_decimate(y)
     Helper.set_band_param(band_idx, "decimate", rate, shift_held, freqs, "%.0f Hz", save_to_snapshot, current_snapshot)
 end
