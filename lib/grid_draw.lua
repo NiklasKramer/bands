@@ -257,7 +257,7 @@ end
 
 -- Draw path mode elements
 function GridDraw.draw_path_mode_elements(g)
-    if grid_ui_state.grid_mode == 5 then -- Matrix mode
+    if grid_ui_state.grid_mode == 6 then -- Matrix mode
         -- Path mode toggle indicator at (16,1)
         local path_brightness = path_state.mode and 15 or 4
         g:led(16, 1, path_brightness)

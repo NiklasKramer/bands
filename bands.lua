@@ -1722,15 +1722,19 @@ function enc(n, d)
             selected_band = math.max(1, math.min(#freqs, selected_band))
         end
     elseif n == 3 then
-        -- Check if we're at a snapshot corner before allowing edits
-        local at_corner = is_at_snapshot_corner(grid_ui_state.current_matrix_pos.x, grid_ui_state.current_matrix_pos.y)
+        -- Allow Enc 3 freely on matrix screen; otherwise enforce corner-only edits
+        if norns_mode ~= 6 then
+            -- Check if we're at a snapshot corner before allowing edits
+            local at_corner = is_at_snapshot_corner(grid_ui_state.current_matrix_pos.x,
+                grid_ui_state.current_matrix_pos.y)
 
-        if not at_corner then
-            -- Not at a corner - show warning and block edits
-            if params:get("info_banner") == 2 then
-                info_banner_mod.show("MOVE TO CORNER TO EDIT")
+            if not at_corner then
+                -- Not at a corner - show warning and block edits
+                if params:get("info_banner") == 2 then
+                    info_banner_mod.show("MOVE TO CORNER TO EDIT")
+                end
+                return
             end
-            return
         end
 
         if norns_mode == 0 then
