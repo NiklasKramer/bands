@@ -96,7 +96,7 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                     if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
                     if snapshot_functions.show_banner then
                         snapshot_functions.show_banner(ui_state.current_state_mode and "GRID: CURRENT STATE ON" or
-                        "GRID: CURRENT STATE OFF")
+                            "GRID: CURRENT STATE OFF")
                     end
                 else
                     if snapshot_functions.select_snapshot then
@@ -109,7 +109,7 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                     if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
                     if snapshot_functions.show_banner then
                         snapshot_functions.show_banner(ui_state.current_state_mode and "GRID: CURRENT STATE ON" or
-                        "GRID: CURRENT STATE OFF")
+                            "GRID: CURRENT STATE OFF")
                     end
                 else
                     if snapshot_functions.select_snapshot then
@@ -122,7 +122,7 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                     if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
                     if snapshot_functions.show_banner then
                         snapshot_functions.show_banner(ui_state.current_state_mode and "GRID: CURRENT STATE ON" or
-                        "GRID: CURRENT STATE OFF")
+                            "GRID: CURRENT STATE OFF")
                     end
                 else
                     if snapshot_functions.select_snapshot then
@@ -135,7 +135,7 @@ function GridUI.key(ui_state, x, y, z, redraw_screen_callback, snapshot_function
                     if snapshot_functions.redraw_grid then snapshot_functions.redraw_grid() end
                     if snapshot_functions.show_banner then
                         snapshot_functions.show_banner(ui_state.current_state_mode and "GRID: CURRENT STATE ON" or
-                        "GRID: CURRENT STATE OFF")
+                            "GRID: CURRENT STATE OFF")
                     end
                 else
                     if snapshot_functions.select_snapshot then
