@@ -16,6 +16,7 @@ local snapshot_mod = include 'lib/snapshot'
 -- params
 local controlspec = require 'controlspec'
 local util = require 'util'
+local fileselect = require 'fileselect'
 
 -- forward declarations
 local metro_grid_refresh
@@ -137,6 +138,17 @@ end
 -- Clipboard for copy/paste
 local clipboard = nil
 
+-- File selection state
+local fileselect_active = false
+
+-- File selection callback
+local function file_select_callback(file)
+    fileselect_active = false -- Reset the flag
+    if file ~= "cancel" and file ~= "" then
+        params:set("file_path", file)
+    end
+end
+
 -- Initialize current state from the current snapshot
 -- Wrapper functions for snapshot module
 local function init_current_state()
@@ -186,6 +198,7 @@ local function copy_snapshot()
     clipboard.osc_mod_depth = params:get("osc_mod_depth")
     clipboard.file_level = params:get("file_level")
     clipboard.file_speed = params:get("file_speed")
+    clipboard.file_gate = params:get("file_gate")
 
     -- Copy effect settings
     clipboard.delay_time = params:get("delay_time")
@@ -239,6 +252,7 @@ local function paste_snapshot()
     params:set("osc_mod_depth", clipboard.osc_mod_depth)
     params:set("file_level", clipboard.file_level)
     params:set("file_speed", clipboard.file_speed)
+    params:set("file_gate", clipboard.file_gate)
 
     -- Paste effect settings
     params:set("delay_time", clipboard.delay_time)
@@ -377,6 +391,11 @@ function apply_blend(x, y, old_x, old_y)
         params:get("snapshot_c_file_speed") * c_w +
         params:get("snapshot_d_file_speed") * d_w
 
+    target_values.file_gate = params:get("snapshot_a_file_gate") * a_w +
+        params:get("snapshot_b_file_gate") * b_w +
+        params:get("snapshot_c_file_gate") * c_w +
+        params:get("snapshot_d_file_gate") * d_w
+
     target_values.delay_time = params:get("snapshot_a_delay_time") * a_w +
         params:get("snapshot_b_delay_time") * b_w +
         params:get("snapshot_c_delay_time") * c_w +
@@ -502,6 +521,8 @@ function apply_blend(x, y, old_x, old_y)
                 (glide_state.target_values.file_level - glide_state.current_values.file_level) * progress
             current_values.file_speed = glide_state.current_values.file_speed +
                 (glide_state.target_values.file_speed - glide_state.current_values.file_speed) * progress
+            current_values.file_gate = glide_state.current_values.file_gate +
+                (glide_state.target_values.file_gate - glide_state.current_values.file_gate) * progress
             current_values.delay_time = glide_state.current_values.delay_time +
                 (glide_state.target_values.delay_time - glide_state.current_values.delay_time) * progress
             current_values.delay_feedback = glide_state.current_values.delay_feedback +
@@ -577,6 +598,7 @@ function apply_blend(x, y, old_x, old_y)
             glide_state.current_values.osc_mod_depth = params:get("osc_mod_depth")
             glide_state.current_values.file_level = params:get("file_level")
             glide_state.current_values.file_speed = params:get("file_speed")
+            glide_state.current_values.file_gate = params:get("file_gate")
             glide_state.current_values.delay_time = params:get("delay_time")
             glide_state.current_values.delay_feedback = params:get("delay_feedback")
             glide_state.current_values.delay_mix = params:get("delay_mix")
@@ -627,6 +649,12 @@ function apply_blend(x, y, old_x, old_y)
         params:set("osc_mod_depth", target_values.osc_mod_depth)
         params:set("file_level", target_values.file_level)
         params:set("file_speed", target_values.file_speed)
+        params:set("file_gate", target_values.file_gate)
+
+        -- Apply file parameters directly to engine for immediate effect
+        if engine and engine.file_level then engine.file_level(target_values.file_level) end
+        if engine and engine.file_speed then engine.file_speed(target_values.file_speed) end
+        if engine and engine.file_gate then engine.file_gate(target_values.file_gate) end
         params:set("delay_time", target_values.delay_time)
         params:set("delay_feedback", target_values.delay_feedback)
         params:set("delay_mix", target_values.delay_mix)
@@ -910,6 +938,11 @@ end
 
 -- screen redraw
 function redraw()
+    -- If file browser is active, let fileselect handle screen redraw
+    if fileselect_active then
+        return
+    end
+
     screen.clear()
     screen.level(15)
 
@@ -1086,13 +1119,36 @@ function redraw()
             local file_speed = params:get("file_speed")
             local file_gate = params:get("file_gate")
 
+            local file_path = params:get("file_path")
+            local file_name = "..."
+            if file_path and file_path ~= "" and file_path ~= _path.audio then
+                -- Extract just the filename from the full path
+                file_name = string.match(file_path, "([^/]+)$") or file_path
+                -- Truncate if too long
+                if #file_name > 12 then
+                    file_name = string.sub(file_name, 1, 9) .. "..."
+                end
+            end
+
             local param_names = { "LEVEL", "SPEED", "PLAY", "SELECT" }
             local param_values = {
                 string.format("%.2f", file_level),
                 string.format("%.2f", file_speed),
                 file_gate == 1 and "ON" or "OFF",
-                "..."
+                file_name
             }
+
+            -- Show semitone pitch info when shift is held
+            if grid_ui_state.shift_held then
+                local current_semitones = math.floor(math.log(file_speed) / math.log(2) * 12 + 0.5)
+                param_names = { "LEVEL", "SPEED", "PLAY", "PITCH" }
+                param_values = {
+                    string.format("%.2f", file_level),
+                    string.format("%.2f", file_speed),
+                    file_gate == 1 and "ON" or "OFF",
+                    string.format("%+d", current_semitones)
+                }
+            end
 
             -- Display current parameter name
             screen.font_face(1)
@@ -1679,6 +1735,11 @@ function key(n, z)
 end
 
 function enc(n, d)
+    -- If file browser is active, let fileselect handle all input
+    if fileselect_active then
+        return
+    end
+
     if n == 1 then
         if grid_ui_state.shift_held then
             -- Shift + Encoder 1: Switch/Select snapshots
@@ -1693,8 +1754,7 @@ function enc(n, d)
             end
 
             local new_index = current_index + d
-            if new_index < 1 then new_index = 4 end
-            if new_index > 4 then new_index = 1 end
+            new_index = util.clamp(new_index, 1, 4)
 
             -- Use select_snapshot when current_state_mode is OFF, switch_to_snapshot when ON
             if grid_ui_state.current_state_mode then
@@ -1781,6 +1841,21 @@ function enc(n, d)
 
         if norns_mode == 0 then
             -- Inputs mode: Adjust selected parameter (E3)
+
+            -- Check for shift + encoder 3 for semitone pitch control (file input only)
+            if grid_ui_state.shift_held and input_mode_state.selected_input == 5 then
+                local current_speed = params:get("file_speed")
+                local current_semitones = math.floor(math.log(current_speed) / math.log(2) * 12 + 0.5)
+                local new_semitones = util.clamp(current_semitones + d, -24, 24)
+                local new_speed = math.pow(2, new_semitones / 12)
+                params:set("file_speed", new_speed)
+                store_snapshot(get_current_snapshot_from_position())
+                if params:get("info_banner") == 2 then
+                    info_banner_mod.show(string.format("PITCH: %+d semitones (%.2fx)", new_semitones, new_speed))
+                end
+                return
+            end
+
             if input_mode_state.selected_input == 1 then
                 -- Live: Audio In Level
                 local current = params:get("audio_in_level")
@@ -1864,9 +1939,9 @@ function enc(n, d)
                     params:set("file_level", new_val)
                     store_snapshot(get_current_snapshot_from_position())
                 elseif input_mode_state.selected_param == 2 then
-                    -- Speed
+                    -- Speed (more fine-grained control)
                     local current = params:get("file_speed")
-                    local new_val = util.clamp(current + d * 0.1, -4, 4)
+                    local new_val = util.clamp(current + d * 0.01, -4, 4)
                     params:set("file_speed", new_val)
                     store_snapshot(get_current_snapshot_from_position())
                 elseif input_mode_state.selected_param == 3 then
@@ -1874,14 +1949,16 @@ function enc(n, d)
                     if d ~= 0 then
                         local current = params:get("file_gate")
                         params:set("file_gate", 1 - current)
+                        store_snapshot(get_current_snapshot_from_position())
                         if params:get("info_banner") == 2 then
                             info_banner_mod.show(current == 0 and "FILE PLAY" or "FILE STOP")
                         end
                     end
                 elseif input_mode_state.selected_param == 4 then
                     -- Select file (open file browser on any encoder turn)
-                    if d ~= 0 then
-                        _menu.fileselect(params:lookup_param("file_path"))
+                    if d ~= 0 and not fileselect_active then
+                        fileselect_active = true
+                        fileselect.enter(_path.audio, file_select_callback, "audio")
                     end
                 end
             end
@@ -2283,6 +2360,7 @@ function add_params()
         end
     }
 
+
     params:add {
         type = "binary",
         id = "file_gate",
@@ -2524,6 +2602,13 @@ function add_params()
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
     params:add {
+        type = "binary",
+        id = "snapshot_a_file_gate",
+        name = "File Gate",
+        behavior = "toggle",
+        default = 0
+    }
+    params:add {
         type = "control",
         id = "snapshot_a_delay_time",
         name = "Delay Time",
@@ -2734,6 +2819,13 @@ function add_params()
         name = "File Speed",
         controlspec = controlspec.new(-4, 4, 'lin', 0.01, 1.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "binary",
+        id = "snapshot_b_file_gate",
+        name = "File Gate",
+        behavior = "toggle",
+        default = 0
     }
     params:add {
         type = "control",
@@ -2948,6 +3040,13 @@ function add_params()
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
     params:add {
+        type = "binary",
+        id = "snapshot_c_file_gate",
+        name = "File Gate",
+        behavior = "toggle",
+        default = 0
+    }
+    params:add {
         type = "control",
         id = "snapshot_c_delay_time",
         name = "Delay Time",
@@ -3158,6 +3257,13 @@ function add_params()
         name = "File Speed",
         controlspec = controlspec.new(-4, 4, 'lin', 0.01, 1.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
+    }
+    params:add {
+        type = "binary",
+        id = "snapshot_d_file_gate",
+        name = "File Gate",
+        behavior = "toggle",
+        default = 0
     }
     params:add {
         type = "control",

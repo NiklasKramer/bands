@@ -64,6 +64,15 @@ function Glide.complete_glide()
     if glide_state.target_values.osc_mod_depth and engine and engine.osc_mod_depth then
         engine.osc_mod_depth(glide_state.target_values.osc_mod_depth)
     end
+    if glide_state.target_values.file_level and engine and engine.file_level then
+        engine.file_level(glide_state.target_values.file_level)
+    end
+    if glide_state.target_values.file_speed and engine and engine.file_speed then
+        engine.file_speed(glide_state.target_values.file_speed)
+    end
+    if glide_state.target_values.file_gate and engine and engine.file_gate then
+        engine.file_gate(glide_state.target_values.file_gate)
+    end
 
     for i = 1, #freqs do
         local level_id = string.format("band_%02d_level", i)
@@ -182,6 +191,19 @@ function Glide.update_glide_parameters(progress)
     local current_osc_mod_depth = glide_state.current_values.osc_mod_depth +
         (glide_state.target_values.osc_mod_depth - glide_state.current_values.osc_mod_depth) * progress
     params:set("osc_mod_depth", current_osc_mod_depth)
+
+    -- Update file parameters
+    local current_file_level = glide_state.current_values.file_level +
+        (glide_state.target_values.file_level - glide_state.current_values.file_level) * progress
+    params:set("file_level", current_file_level)
+
+    local current_file_speed = glide_state.current_values.file_speed +
+        (glide_state.target_values.file_speed - glide_state.current_values.file_speed) * progress
+    params:set("file_speed", current_file_speed)
+
+    local current_file_gate = glide_state.current_values.file_gate +
+        (glide_state.target_values.file_gate - glide_state.current_values.file_gate) * progress
+    params:set("file_gate", current_file_gate)
 
     -- Update matrix position during glide
     grid_ui_state.current_matrix_pos.x = glide_state.start_pos.x +

@@ -14,7 +14,7 @@ In maiden's command line, enter:
 
 ## Overview
 
-**bands** divides audio into 16 frequency bands, each with independent control over level, pan, threshold gating, and sample rate decimation. The script features a powerful snapshot and matrix morphing system that allows you to blend between four different states (A, B, C, D) with smooth interpolation.
+**bands** divides audio into 16 frequency bands, each with independent control over level, pan, threshold gating, and sample rate decimation. The script features a snapshot and matrix morphing system that allows you to blend between four different states (A, B, C, D) with smooth interpolation.
 
 Think of it as a spectral workstation where you can sculpt sound by treating each frequency band as an individual voice, then morph between completely different sonic states using a 2D performance surface.
 
@@ -37,7 +37,7 @@ The Buchla 296e Spectral Processor split incoming audio into 16 frequency bands,
 - **~** - Oscillator: Complex Buchla-inspired oscillator with FM modulation (Level, Freq, Timbre, Morph, Mod Rate, Mod Depth)
 - **.** - Dust: Random impulses with adjustable density
 - **\*** - Noise: Pink noise with optional LFO modulation
-- **>** - File: Audio file playback with speed control
+- **>** - File: Audio file playback with level, speed, and play/stop control
 
 ### Band Processing (Grid + Norns)
 
@@ -109,6 +109,7 @@ Toggle with:
 - In band modes: Change selected band parameter
 - In MATRIX: Navigate Y position
 - In MATRIX + Shift: Adjust glide time
+- In File input + Shift: Adjust pitch in semitones
 
 **Key 1**: Shift modifier
 
@@ -174,7 +175,9 @@ All parameters are saved per-snapshot and can be morphed in the matrix:
 
 ### Input Sources
 
-Each input has its own controls (see INPUTS screen)
+Each input has its own controls (see INPUTS screen):
+
+- **File input**: Level, Speed (with semitone pitch control via Shift + Enc 3), Play/Stop, File selection
 
 ### Output Effects
 
