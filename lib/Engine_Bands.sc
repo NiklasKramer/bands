@@ -13,15 +13,20 @@ Engine_Bands : CroneEngine {
             Out.ar(outBus, sig * level);
         }).add;
         
-        // Noise source - pink noise with optional LFO modulation
-        SynthDef(\noiseSource, { |outBus = 0, level = 0.1, lfoRate = 0, lfoDepth = 1.0|
-            var sig, noiseLfo, lfoMin;
+        // Noise source - pink noise with optional LFO modulation and rate jitter
+        // lfoRateJitterDepth is 0..1 (percentage of lfoRate)
+        SynthDef(\noiseSource, { |outBus = 0, level = 0.1, lfoRate = 0, lfoDepth = 1.0, lfoRateJitterRate = 0, lfoRateJitterDepth = 0|
+            var sig, noiseLfo, lfoMin, effRate, pctDepth;
             
             // Depth controls how deep the LFO goes (0.0 = no modulation, 1.0 = full range)
             lfoMin = 1.0 - lfoDepth;  // Calculate minimum level based on depth
-            noiseLfo = Select.kr(lfoRate > 0, [
+            // Apply sine LFO modulation to the LFO rate (percentage depth)
+            pctDepth = lfoRateJitterDepth.max(0.0).min(1.0);
+            effRate = (lfoRate * (1 + SinOsc.kr(lfoRateJitterRate).range(pctDepth.neg, pctDepth))).max(0.0);
+
+            noiseLfo = Select.kr(effRate > 0, [
                 1.0,  // No LFO when rate is 0
-                LFTri.kr(lfoRate).range(lfoMin, 1.0)  // LFO with variable depth
+                LFTri.kr(effRate).range(lfoMin, 1.0)  // LFO with variable depth
             ]);
             
             sig = PinkNoise.ar([level * 0.5 * noiseLfo, level * noiseLfo]);
@@ -296,7 +301,9 @@ Engine_Bands : CroneEngine {
                 \outBus, ~inputBus,
                 \level, 0.0,
                 \lfoRate, 0,
-                \lfoDepth, 1.0
+                \lfoDepth, 1.0,
+                \lfoRateJitterRate, 0,
+                \lfoRateJitterDepth, 0
             ]
         );
         
@@ -540,6 +547,24 @@ Engine_Bands : CroneEngine {
             };
         });
         
+        // set noise LFO rate jitter rate (0.0 to 5.0 Hz)
+        this.addCommand("noise_lfo_rate_jitter_rate", "f", { arg msg;
+            var rate;
+            rate = msg[1].clip(0.0, 5.0);
+            if(~noiseSource.notNil) {
+                ~noiseSource.set(\lfoRateJitterRate, rate);
+            };
+        });
+        
+        // set noise LFO rate jitter depth (0.0 to 1.0, percentage of rate)
+        this.addCommand("noise_lfo_rate_jitter_depth", "f", { arg msg;
+            var depth;
+            depth = msg[1].clip(0.0, 1.0);
+            if(~noiseSource.notNil) {
+                ~noiseSource.set(\lfoRateJitterDepth, depth);
+            };
+        });
+        
         // set noise LFO depth (0.0 = no modulation, 1.0 = full depth)
         this.addCommand("noise_lfo_depth", "f", { arg msg;
             var depth;
@@ -729,36 +754,36 @@ Engine_Bands : CroneEngine {
 
     // ---- Teardown ------------------------------------------------------------
     free {
-        // Free synths first (in reverse order of creation)
-        if(~finalLimiter.notNil) { ~finalLimiter.free; ~finalLimiter = nil; };
-        if(~eqFx.notNil) { ~eqFx.free; ~eqFx = nil; };
-        if(~delayFx.notNil) { ~delayFx.free; ~delayFx = nil; };
-        if(~bands.notNil) { ~bands.do({ |x| if(x.notNil) { x.free } }); ~bands = nil; };
-        if(~fileSource.notNil) { ~fileSource.free; ~fileSource = nil; };
-        if(~oscSource.notNil) { ~oscSource.free; ~oscSource = nil; };
-        if(~dustSource.notNil) { ~dustSource.free; ~dustSource = nil; };
-        if(~noiseSource.notNil) { ~noiseSource.free; ~noiseSource = nil; };
-        if(~audioInSource.notNil) { ~audioInSource.free; ~audioInSource = nil; };
-        
-        // Free group after all synths
-        if(~bandGroup.notNil) { ~bandGroup.free; ~bandGroup = nil; };
-        
-        // Free buffers
-        if(~fileBuffer.notNil) { ~fileBuffer.free; ~fileBuffer = nil; };
-        
-        // Free buses
-        if(~eqBus.notNil) { ~eqBus.free; ~eqBus = nil; };
-        if(~delayBus.notNil) { ~delayBus.free; ~delayBus = nil; };
-        if(~sumBus.notNil) { ~sumBus.free; ~sumBus = nil; };
-        if(~inputBus.notNil) { ~inputBus.free; ~inputBus = nil; };
-        if(~meterBuses.notNil) { ~meterBuses.do({ |b| if(b.notNil) { b.free } }); ~meterBuses = nil; };
-        
-        // Clean up function references
-        ~setBandParam = nil;
-        ~meterPollNames = nil;
-        
-        super.free;
-    }
+		// Free synths first (in reverse order of creation)
+		~finalLimiter.free; ~finalLimiter = nil;
+		~eqFx.free; ~eqFx = nil;
+		~delayFx.free; ~delayFx = nil;
+		~bands.do({ |x| x.free }); ~bands = nil;
+		~fileSource.free; ~fileSource = nil;
+		~oscSource.free; ~oscSource = nil;
+		~dustSource.free; ~dustSource = nil;
+		~noiseSource.free; ~noiseSource = nil;
+		~audioInSource.free; ~audioInSource = nil;
+		
+		// Free group after all synths
+		~bandGroup.free; ~bandGroup = nil;
+		
+		// Free buffers
+		~fileBuffer.free; ~fileBuffer = nil;
+		
+		// Free buses
+		~eqBus.free; ~eqBus = nil;
+		~delayBus.free; ~delayBus = nil;
+		~sumBus.free; ~sumBus = nil;
+		~inputBus.free; ~inputBus = nil;
+		~meterBuses.do({ |b| b.free }); ~meterBuses = nil;
+		
+		// Clean up function references
+		~setBandParam = nil;
+		~meterPollNames = nil;
+		
+		super.free;
+	}
 }
 
 

@@ -189,6 +189,8 @@ local function copy_snapshot()
     clipboard.dust_level = params:get("dust_level")
     clipboard.noise_lfo_rate = params:get("noise_lfo_rate")
     clipboard.noise_lfo_depth = params:get("noise_lfo_depth")
+    clipboard.noise_lfo_rate_jitter_rate = params:get("noise_lfo_rate_jitter_rate")
+    clipboard.noise_lfo_rate_jitter_depth = params:get("noise_lfo_rate_jitter_depth")
     clipboard.dust_density = params:get("dust_density")
     clipboard.osc_level = params:get("osc_level")
     clipboard.osc_freq = params:get("osc_freq")
@@ -243,6 +245,8 @@ local function paste_snapshot()
     params:set("dust_level", clipboard.dust_level)
     params:set("noise_lfo_rate", clipboard.noise_lfo_rate)
     params:set("noise_lfo_depth", clipboard.noise_lfo_depth)
+    params:set("noise_lfo_rate_jitter_rate", clipboard.noise_lfo_rate_jitter_rate)
+    params:set("noise_lfo_rate_jitter_depth", clipboard.noise_lfo_rate_jitter_depth)
     params:set("dust_density", clipboard.dust_density)
     params:set("osc_level", clipboard.osc_level)
     params:set("osc_freq", clipboard.osc_freq)
@@ -345,6 +349,16 @@ function apply_blend(x, y, old_x, old_y)
         params:get("snapshot_b_noise_lfo_depth") * b_w +
         params:get("snapshot_c_noise_lfo_depth") * c_w +
         params:get("snapshot_d_noise_lfo_depth") * d_w
+
+    target_values.noise_lfo_rate_jitter_rate = params:get("snapshot_a_noise_lfo_rate_jitter_rate") * a_w +
+        params:get("snapshot_b_noise_lfo_rate_jitter_rate") * b_w +
+        params:get("snapshot_c_noise_lfo_rate_jitter_rate") * c_w +
+        params:get("snapshot_d_noise_lfo_rate_jitter_rate") * d_w
+
+    target_values.noise_lfo_rate_jitter_depth = params:get("snapshot_a_noise_lfo_rate_jitter_depth") * a_w +
+        params:get("snapshot_b_noise_lfo_rate_jitter_depth") * b_w +
+        params:get("snapshot_c_noise_lfo_rate_jitter_depth") * c_w +
+        params:get("snapshot_d_noise_lfo_rate_jitter_depth") * d_w
 
     target_values.dust_density = params:get("snapshot_a_dust_density") * a_w +
         params:get("snapshot_b_dust_density") * b_w +
@@ -503,6 +517,12 @@ function apply_blend(x, y, old_x, old_y)
                 (glide_state.target_values.noise_lfo_rate - glide_state.current_values.noise_lfo_rate) * progress
             current_values.noise_lfo_depth = glide_state.current_values.noise_lfo_depth +
                 (glide_state.target_values.noise_lfo_depth - glide_state.current_values.noise_lfo_depth) * progress
+            current_values.noise_lfo_rate_jitter_rate = glide_state.current_values.noise_lfo_rate_jitter_rate +
+                (glide_state.target_values.noise_lfo_rate_jitter_rate - glide_state.current_values.noise_lfo_rate_jitter_rate) *
+                progress
+            current_values.noise_lfo_rate_jitter_depth = glide_state.current_values.noise_lfo_rate_jitter_depth +
+                (glide_state.target_values.noise_lfo_rate_jitter_depth - glide_state.current_values.noise_lfo_rate_jitter_depth) *
+                progress
             current_values.dust_density = glide_state.current_values.dust_density +
                 (glide_state.target_values.dust_density - glide_state.current_values.dust_density) * progress
             current_values.osc_level = glide_state.current_values.osc_level +
@@ -589,6 +609,8 @@ function apply_blend(x, y, old_x, old_y)
             glide_state.current_values.dust_level = params:get("dust_level")
             glide_state.current_values.noise_lfo_rate = params:get("noise_lfo_rate")
             glide_state.current_values.noise_lfo_depth = params:get("noise_lfo_depth")
+            glide_state.current_values.noise_lfo_rate_jitter_rate = params:get("noise_lfo_rate_jitter_rate")
+            glide_state.current_values.noise_lfo_rate_jitter_depth = params:get("noise_lfo_rate_jitter_depth")
             glide_state.current_values.dust_density = params:get("dust_density")
             glide_state.current_values.osc_level = params:get("osc_level")
             glide_state.current_values.osc_freq = params:get("osc_freq")
@@ -640,6 +662,8 @@ function apply_blend(x, y, old_x, old_y)
         params:set("dust_level", target_values.dust_level)
         params:set("noise_lfo_rate", target_values.noise_lfo_rate)
         params:set("noise_lfo_depth", target_values.noise_lfo_depth)
+        params:set("noise_lfo_rate_jitter_rate", target_values.noise_lfo_rate_jitter_rate)
+        params:set("noise_lfo_rate_jitter_depth", target_values.noise_lfo_rate_jitter_depth)
         params:set("dust_density", target_values.dust_density)
         params:set("osc_level", target_values.osc_level)
         params:set("osc_freq", target_values.osc_freq)
@@ -1081,12 +1105,16 @@ function redraw()
             local noise_level = params:get("noise_level")
             local noise_lfo_rate = params:get("noise_lfo_rate")
             local noise_lfo_depth = params:get("noise_lfo_depth")
+            local noise_lfo_rate_jitter_rate = params:get("noise_lfo_rate_jitter_rate")
+            local noise_lfo_rate_jitter_depth = params:get("noise_lfo_rate_jitter_depth")
 
-            local param_names = { "LEVEL", "LFO RATE", "LFO DEPTH" }
+            local param_names = { "LEVEL", "LFO RATE", "LFO DEPTH", "RATE JITTER", "JITTER DEPTH" }
             local param_values = {
                 string.format("%.2f", noise_level),
-                string.format("%.1f Hz", noise_lfo_rate),
-                string.format("%.0f%%", noise_lfo_depth * 100)
+                string.format("%.2f Hz", noise_lfo_rate),
+                string.format("%.0f%%", noise_lfo_depth * 100),
+                string.format("%.2f Hz", noise_lfo_rate_jitter_rate),
+                string.format("%.0f%%", noise_lfo_rate_jitter_depth * 100)
             }
 
             -- Display current parameter name
@@ -1103,11 +1131,11 @@ function redraw()
             screen.move(content_x, 45)
             screen.text_center(param_values[input_mode_state.selected_param])
 
-            -- Parameter indicator (3 dots, current one bright, centered)
+            -- Parameter indicator (5 dots, current one bright, centered)
             local dot_spacing = 6
-            local dots_width = 3 * dot_spacing - dot_spacing
+            local dots_width = 5 * dot_spacing - dot_spacing
             local dot_start_x = (128 - dots_width) / 2
-            for i = 1, 3 do
+            for i = 1, 5 do
                 local brightness = (i == input_mode_state.selected_param) and 15 or 4
                 screen.level(brightness)
                 screen.circle(dot_start_x + (i - 1) * dot_spacing, 54, 1.5)
@@ -1566,27 +1594,6 @@ function redraw()
     screen.update()
 end
 
--- cleanup
-function cleanup()
-    meters_mod.cleanup(band_meter_polls)
-    if metro_grid_refresh then
-        metro_grid_refresh:stop()
-        metro_grid_refresh = nil
-    end
-    if metro_glide then
-        metro_glide:stop()
-        metro_glide = nil
-    end
-    if metro_screen_refresh then
-        metro_screen_refresh:stop()
-        metro_screen_refresh = nil
-    end
-    if path_state.playback_metro then
-        path_state.playback_metro:stop()
-        path_state.playback_metro = nil
-    end
-end
-
 -- key/enc handlers
 function key(n, z)
     if n == 1 then
@@ -1807,8 +1814,8 @@ function enc(n, d)
                 max_params = 2
                 param_names = { "LEVEL", "DENSITY" }
             elseif input_mode_state.selected_input == 4 then
-                max_params = 3
-                param_names = { "LEVEL", "LFO RATE", "LFO DEPTH" }
+                max_params = 5
+                param_names = { "LEVEL", "LFO RATE", "LFO DEPTH", "RATE JITTER", "JITTER DEPTH" }
             elseif input_mode_state.selected_input == 5 then
                 max_params = 4
                 param_names = { "LEVEL", "SPEED", "PLAY", "SELECT" }
@@ -1921,13 +1928,23 @@ function enc(n, d)
                     store_snapshot(get_current_snapshot_from_position())
                 elseif input_mode_state.selected_param == 2 then
                     local current = params:get("noise_lfo_rate")
-                    local new_val = util.clamp(current + d * 0.5, 0, 20)
+                    local new_val = util.clamp(current + d * 0.1, 0, 20)
                     params:set("noise_lfo_rate", new_val)
                     store_snapshot(get_current_snapshot_from_position())
                 elseif input_mode_state.selected_param == 3 then
                     local current = params:get("noise_lfo_depth")
                     local new_val = util.clamp(current + d * 0.01, 0, 1)
                     params:set("noise_lfo_depth", new_val)
+                    store_snapshot(get_current_snapshot_from_position())
+                elseif input_mode_state.selected_param == 4 then
+                    local current = params:get("noise_lfo_rate_jitter_rate")
+                    local new_val = util.clamp(current + d * 0.05, 0, 5)
+                    params:set("noise_lfo_rate_jitter_rate", new_val)
+                    store_snapshot(get_current_snapshot_from_position())
+                elseif input_mode_state.selected_param == 5 then
+                    local current = params:get("noise_lfo_rate_jitter_depth")
+                    local new_val = util.clamp(current + d * 0.01, 0, 1)
+                    params:set("noise_lfo_rate_jitter_depth", new_val)
                     store_snapshot(get_current_snapshot_from_position())
                 end
             elseif input_mode_state.selected_input == 5 then
@@ -2232,6 +2249,29 @@ function add_params()
         end
     }
 
+    -- Noise LFO rate jitter controls
+    params:add {
+        type = "control",
+        id = "noise_lfo_rate_jitter_rate",
+        name = "LFO Rate Jitter Rate",
+        controlspec = controlspec.new(0, 10, 'lin', 0.01, 0, 'Hz'),
+        formatter = function(p) return string.format("%.2f Hz", p:get()) end,
+        action = function(rate)
+            if engine and engine.noise_lfo_rate_jitter_rate then engine.noise_lfo_rate_jitter_rate(rate) end
+        end
+    }
+
+    params:add {
+        type = "control",
+        id = "noise_lfo_rate_jitter_depth",
+        name = "LFO Rate Jitter Depth",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
+        formatter = function(p) return string.format("%.0f%%", p:get() * 100) end,
+        action = function(depth)
+            if engine and engine.noise_lfo_rate_jitter_depth then engine.noise_lfo_rate_jitter_depth(depth) end
+        end
+    }
+
     -- Dust
     params:add_separator("dust_section", "> Dust")
     params:add {
@@ -2486,7 +2526,7 @@ function add_params()
     params:add_separator("snapshots_section", "Snapshots")
 
     -- Snapshot A
-    params:add_group("snapshot A", 88)
+    params:add_group("snapshot A", 91)
     params:add {
         type = "control",
         id = "snapshot_a_q",
@@ -2536,6 +2576,20 @@ function add_params()
         id = "snapshot_a_noise_lfo_depth",
         name = "Noise LFO Depth",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.0f%%", p:get() * 100) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_a_noise_lfo_rate_jitter_rate",
+        name = "Noise LFO Rate Jitter Rate",
+        controlspec = controlspec.new(0, 5, 'lin', 0.01, 0, 'Hz'),
+        formatter = function(p) return string.format("%.2f Hz", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_a_noise_lfo_rate_jitter_depth",
+        name = "Noise LFO Rate Jitter Depth",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.0f%%", p:get() * 100) end
     }
     params:add {
@@ -2705,7 +2759,7 @@ function add_params()
     end
 
     -- Snapshot B
-    params:add_group("snapshot B", 88)
+    params:add_group("snapshot B", 91)
     params:add {
         type = "control",
         id = "snapshot_b_q",
@@ -2755,6 +2809,20 @@ function add_params()
         id = "snapshot_b_noise_lfo_depth",
         name = "Noise LFO Depth",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.0f%%", p:get() * 100) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_b_noise_lfo_rate_jitter_rate",
+        name = "Noise LFO Rate Jitter Rate",
+        controlspec = controlspec.new(0, 5, 'lin', 0.01, 0, 'Hz'),
+        formatter = function(p) return string.format("%.2f Hz", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_b_noise_lfo_rate_jitter_depth",
+        name = "Noise LFO Rate Jitter Depth",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.0f%%", p:get() * 100) end
     }
     params:add {
@@ -2924,7 +2992,7 @@ function add_params()
     end
 
     -- Snapshot C
-    params:add_group("snapshot C", 88)
+    params:add_group("snapshot C", 91)
     params:add {
         type = "control",
         id = "snapshot_c_q",
@@ -2974,6 +3042,20 @@ function add_params()
         id = "snapshot_c_noise_lfo_depth",
         name = "Noise LFO Depth",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.0f%%", p:get() * 100) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_c_noise_lfo_rate_jitter_rate",
+        name = "Noise LFO Rate Jitter Rate",
+        controlspec = controlspec.new(0, 5, 'lin', 0.01, 0, 'Hz'),
+        formatter = function(p) return string.format("%.2f Hz", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_c_noise_lfo_rate_jitter_depth",
+        name = "Noise LFO Rate Jitter Depth",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.0f%%", p:get() * 100) end
     }
     params:add {
@@ -3143,7 +3225,7 @@ function add_params()
     end
 
     -- Snapshot D
-    params:add_group("snapshot D", 88)
+    params:add_group("snapshot D", 91)
     params:add {
         type = "control",
         id = "snapshot_d_q",
@@ -3193,6 +3275,20 @@ function add_params()
         id = "snapshot_d_noise_lfo_depth",
         name = "Noise LFO Depth",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
+        formatter = function(p) return string.format("%.0f%%", p:get() * 100) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_d_noise_lfo_rate_jitter_rate",
+        name = "Noise LFO Rate Jitter Rate",
+        controlspec = controlspec.new(0, 5, 'lin', 0.01, 0, 'Hz'),
+        formatter = function(p) return string.format("%.2f Hz", p:get()) end
+    }
+    params:add {
+        type = "control",
+        id = "snapshot_d_noise_lfo_rate_jitter_depth",
+        name = "Noise LFO Rate Jitter Depth",
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.0f%%", p:get() * 100) end
     }
     params:add {
