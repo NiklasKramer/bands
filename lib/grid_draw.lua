@@ -1,10 +1,10 @@
 -- Grid drawing functionality
+local util = require 'util'
 local GridDraw = {}
 
 -- Dependencies (will be set by main script)
 local grid_ui_state
 local band_meters
-local util
 local params
 local calculate_blend_weights
 local path_state
@@ -228,7 +228,7 @@ function GridDraw.draw_level_meters(g, col, i, meter_v)
             local sub_pixel_y = meter_y0 - 1
             -- Brightness based on fractional part: 2 (background) + fraction * (15-2)
             local sub_pixel_brightness = math.floor(2 + meter_frac * 13)
-            sub_pixel_brightness = math.max(2, math.min(15, sub_pixel_brightness))
+            sub_pixel_brightness = util.clamp(sub_pixel_brightness, 2, 15)
             g:led(col, sub_pixel_y, sub_pixel_brightness)
         end
     end
@@ -319,8 +319,8 @@ function GridDraw.draw_glide_trail(g)
         local y_frac = current_y - y_floor
 
         -- Clamp to valid matrix bounds (1-14)
-        x_floor = math.max(1, math.min(13, x_floor)) -- Max 13 so x_floor+1 <= 14
-        y_floor = math.max(1, math.min(13, y_floor)) -- Max 13 so y_floor+1 <= 14
+        x_floor = util.clamp(x_floor, 1, 13) -- Max 13 so x_floor+1 <= 14
+        y_floor = util.clamp(y_floor, 1, 13) -- Max 13 so y_floor+1 <= 14
 
         -- Calculate brightness for 2x2 grid using bilinear interpolation
         local positions = {
@@ -339,7 +339,7 @@ function GridDraw.draw_glide_trail(g)
 
                 -- Calculate brightness: 2 (background) + weight * (15-2) range
                 local brightness = math.floor(2 + pos.weight * 13 + 0.5)
-                brightness = math.max(2, math.min(15, brightness))
+                brightness = util.clamp(brightness, 2, 15)
 
                 -- Ensure coordinates and brightness are integers
                 grid_x = math.floor(grid_x)
@@ -417,7 +417,6 @@ end
 function GridDraw.init(deps)
     grid_ui_state = deps.grid_ui_state
     band_meters = deps.band_meters
-    util = deps.util
     params = deps.params
     calculate_blend_weights = deps.calculate_blend_weights
     path_state = deps.path_state

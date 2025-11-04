@@ -132,22 +132,26 @@ Engine_Bands : CroneEngine {
         
         // Stereo delay with width control
         SynthDef(\delayFx, { |inBus = 0, outBus = 0, time = 0.5, feedback = 0.5, mix = 0.0, width = 0.5|
-            var sig, delayedL, delayedR, maxTime, wet;
+            var sig, delayedL, delayedR, maxTime, wet, feedbackL, feedbackR;
             sig = In.ar(inBus, 2);
             
-            maxTime = 2.0;
-            time = Lag.kr(time.clip(0.01, maxTime), 0.1);
-            feedback = Lag.kr(feedback.clip(0.0, 1.5), 0.1);  // Allow extreme feedback up to 1.5
+            maxTime = 10.0;
+            time = Lag.kr(time.clip(0.01, maxTime), 0.2);  // Increased lag for smoother delay time changes
+            feedback = Lag.kr(feedback.clip(0.0, 1.0), 0.1);  // Clamp feedback to 0-1
             mix = Lag.kr(mix.clip(0.0, 1.0), 0.1);
             width = Lag.kr(width.clip(0.0, 1.0), 0.1);
             
+            // Read feedback from LocalIn (gentle DC blocking only to prevent DC offset)
+            feedbackL = LeakDC.ar(LocalIn.ar(1), 0.999);
+            feedbackR = LeakDC.ar(LocalIn.ar(1), 0.999);
+            
             // Dual delay lines with different times for width
-            delayedL = LocalIn.ar(1);
-            delayedR = LocalIn.ar(1);
+            // Add input signal to feedback - this allows full buildup at feedback = 1.0
+            delayedL = DelayC.ar(feedbackL + sig[0], maxTime, time * (1 - (width * 0.3)));
+            delayedR = DelayC.ar(feedbackR + sig[1], maxTime, time * (1 + (width * 0.3)));
             
-            delayedL = DelayC.ar(delayedL + sig[0], maxTime, time * (1 - (width * 0.3)));
-            delayedR = DelayC.ar(delayedR + sig[1], maxTime, time * (1 + (width * 0.3)));
-            
+            // Send feedback back (multiplied by feedback amount)
+            // At feedback = 1.0, this sends the full delayed signal back for complete buildup
             LocalOut.ar([delayedL * feedback, delayedR * feedback]);
             
             wet = [delayedL, delayedR];
@@ -680,7 +684,7 @@ Engine_Bands : CroneEngine {
         // Delay effect parameters
         this.addCommand("delay_time", "f", { arg msg;
             var time;
-            time = msg[1].clip(0.01, 2.0);
+            time = msg[1].clip(0.01, 10.0);
             if(~delayFx.notNil) {
                 ~delayFx.set(\time, time);
             };
@@ -688,7 +692,7 @@ Engine_Bands : CroneEngine {
         
         this.addCommand("delay_feedback", "f", { arg msg;
             var feedback;
-            feedback = msg[1].clip(0.0, 0.95);
+            feedback = msg[1].clip(0.0, 1.0);
             if(~delayFx.notNil) {
                 ~delayFx.set(\feedback, feedback);
             };

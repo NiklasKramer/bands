@@ -217,14 +217,6 @@ function Helper.set_band_param(band_idx, param_type, value, shift_held, freqs, f
     end
 end
 
--- Check if at snapshot corner
-local function is_at_snapshot_corner(x, y)
-    return (x == 1 and y == 1) or -- A
-        (x == 14 and y == 1) or   -- B
-        (x == 1 and y == 14) or   -- C
-        (x == 14 and y == 14)     -- D
-end
-
 -- Mode-specific handlers
 function Helper.handle_level_mode(band_idx, y, shift_held, freqs, save_to_snapshot, current_snapshot, set_selected_band,
                                   ui_state, show_banner)
@@ -272,28 +264,6 @@ function Helper.handle_decimate_mode(band_idx, y, shift_held, freqs, save_to_sna
 
     local rate = Helper.row_to_decimate(y)
     Helper.set_band_param(band_idx, "decimate", rate, shift_held, freqs, "%.0f Hz", save_to_snapshot, current_snapshot)
-end
-
--- UI handlers
-function Helper.handle_mode_selector(x, mode_names, set_mode_callback)
-    if x >= 1 and x <= 3 then
-        set_mode_callback(x)
-        print(string.format("mode: %s", mode_names[x]))
-    end
-end
-
-function Helper.handle_band_control(x, y, shift_held, grid_mode, freqs, redraw_callback)
-    local band_idx = x
-    if band_idx <= #freqs then
-        if grid_mode == 1 then
-            Helper.handle_level_mode(band_idx, y, shift_held, freqs)
-        elseif grid_mode == 2 then
-            Helper.handle_pan_mode(band_idx, y, shift_held, freqs)
-        elseif grid_mode == 3 then
-            Helper.handle_threshold_mode(band_idx, y, shift_held, freqs)
-        end
-        redraw_callback()
-    end
 end
 
 -- Handle input mode (mode 0) with selector

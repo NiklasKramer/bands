@@ -1,4 +1,5 @@
 -- Glide functionality
+local util = require 'util'
 local Glide = {}
 
 -- Dependencies (will be set by main script)
@@ -237,7 +238,7 @@ end
 -- Update glide visuals
 function Glide.update_glide_visuals(progress)
     -- Only draw glide animation on matrix screen
-    if grid_ui_state.grid_mode ~= 4 then
+    if grid_ui_state.grid_mode ~= 6 then
         return
     end
 
@@ -261,18 +262,16 @@ end
 -- Clear previous glide LEDs
 function Glide.clear_previous_glide_leds()
     -- Only clear LEDs if we're in matrix mode
-    if grid_ui_state.grid_mode ~= 4 then
+    if grid_ui_state.grid_mode ~= 6 then
         return
     end
-
-    -- Note: Grid clearing is now handled by the normal grid refresh metro
-    -- This function is kept for compatibility but doesn't directly write to grid
+    -- Grid clearing is now handled by the normal grid refresh metro
 end
 
 -- Draw sub-pixel interpolation
 function Glide.draw_sub_pixel_interpolation(current_x, current_y)
     -- Only draw if we're in matrix mode
-    if grid_ui_state.grid_mode ~= 4 then
+    if grid_ui_state.grid_mode ~= 6 then
         return
     end
 
@@ -283,8 +282,8 @@ function Glide.draw_sub_pixel_interpolation(current_x, current_y)
     local y_frac = current_y - y_floor
 
     -- Clamp to valid matrix bounds (1-14)
-    x_floor = math.max(1, math.min(13, x_floor)) -- Max 13 so x_floor+1 <= 14
-    y_floor = math.max(1, math.min(13, y_floor)) -- Max 13 so y_floor+1 <= 14
+    x_floor = util.clamp(x_floor, 1, 13) -- Max 13 so x_floor+1 <= 14
+    y_floor = util.clamp(y_floor, 1, 13) -- Max 13 so y_floor+1 <= 14
 
     -- Calculate brightness for 2x2 grid using bilinear interpolation
     local positions = {
@@ -306,11 +305,9 @@ function Glide.draw_sub_pixel_interpolation(current_x, current_y)
 
             -- Calculate brightness: 2 (background) + weight * (15-2) range
             local brightness = math.floor(2 + pos.weight * 13 + 0.5)
-            brightness = math.max(2, math.min(15, brightness))
+            brightness = util.clamp(brightness, 2, 15)
 
-            -- Note: Grid drawing is now handled by the normal grid refresh metro
-            -- grid_device:led(grid_x, grid_y, brightness)
-
+            -- Grid drawing is now handled by the normal grid refresh metro
             -- Store for clearing next time
             table.insert(glide_state.last_led_positions, { x = grid_x, y = grid_y })
         end
@@ -320,37 +317,19 @@ end
 -- Draw target indicator
 function Glide.draw_target_indicator()
     -- Only draw if we're in matrix mode
-    if grid_ui_state.grid_mode ~= 4 then
+    if grid_ui_state.grid_mode ~= 6 then
         return
     end
-
-    local target_led_x = glide_state.target_pos.x + 1
-    local target_led_y = glide_state.target_pos.y + 1
-    if target_led_x >= 1 and target_led_x <= 16 and target_led_y >= 1 and target_led_y <= 16 then
-        -- Check if target overlaps with any of our interpolated positions
-        local overlaps = false
-        for _, pos in ipairs(glide_state.last_led_positions) do
-            if pos.x == target_led_x and pos.y == target_led_y then
-                overlaps = true
-                break
-            end
-        end
-        if not overlaps then
-            -- Note: Grid drawing is now handled by the normal grid refresh metro
-            -- grid_device:led(target_led_x, target_led_y, 6) -- Dim target indicator
-        end
-    end
+    -- Grid drawing is now handled by the normal grid refresh metro
 end
 
 -- Update glide grid display
 function Glide.update_glide_grid_display()
     -- Only update if we're in matrix mode
-    if grid_ui_state.grid_mode ~= 4 then
+    if grid_ui_state.grid_mode ~= 6 then
         return
     end
-
-    -- Note: Grid drawing is now handled by the normal grid refresh metro
-    -- This function is kept for compatibility but doesn't directly write to grid
+    -- Grid drawing is now handled by the normal grid refresh metro
 end
 
 -- Getters

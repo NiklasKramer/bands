@@ -2,6 +2,7 @@
 -- Reusable temporary text display functionality
 -- Usage: local InfoBanner = require 'lib/info_banner'
 
+local util = require 'util'
 local InfoBanner = {}
 
 -- Default configuration
@@ -83,7 +84,7 @@ function InfoBanner.draw()
 
     -- Measure the text width
     local text_width = screen.text_extents(info_banner_text)
-    local banner_width = math.max(text_width + (padding * 2), min_banner_width)
+    local banner_width = util.clamp(text_width + (padding * 2), min_banner_width, config.screen_w)
 
     local banner_x, banner_y
 
