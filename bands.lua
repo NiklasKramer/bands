@@ -399,47 +399,11 @@ function redraw_grid()
     g:refresh()
 end
 
--- Hide all live (non-snapshot) parameters
+-- Hide all live (non-snapshot) parameter groups
 local function hide_live_parameters()
-    -- Input sources
-    params:hide("audio_in_level")
-    params:hide("noise_level")
-    params:hide("noise_lfo_rate")
-    params:hide("noise_lfo_depth")
-    params:hide("noise_lfo_rate_jitter_rate")
-    params:hide("noise_lfo_rate_jitter_depth")
-    params:hide("dust_level")
-    params:hide("dust_density")
-    params:hide("osc_level")
-    params:hide("osc_freq")
-    params:hide("osc_timbre")
-    params:hide("osc_warp")
-    params:hide("osc_mod_rate")
-    params:hide("osc_mod_depth")
-    params:hide("file_path")
-    params:hide("file_level")
-    params:hide("file_speed")
-    params:hide("file_gate")
-
-    -- Output effects
-    params:hide("delay_time")
-    params:hide("delay_feedback")
-    params:hide("delay_mix")
-    params:hide("delay_width")
-    params:hide("eq_low_cut")
-    params:hide("eq_high_cut")
-    params:hide("eq_low_gain")
-    params:hide("eq_mid_gain")
-    params:hide("eq_high_gain")
-
-    -- Bands group and all parameters
+    params:hide("input_sources")
+    params:hide("output_effects")
     params:hide("bands")
-    for i = 1, #freqs do
-        params:hide(string.format("band_%02d_level", i))
-        params:hide(string.format("band_%02d_pan", i))
-        params:hide(string.format("band_%02d_thresh", i))
-        params:hide(string.format("band_%02d_decimate", i))
-    end
 end
 
 -- init
@@ -1170,7 +1134,13 @@ end
 
 -- Handle Encoder 3: Value adjustment
 local function handle_enc_3(d)
-    -- Block edits globally when current state mode is ON
+    -- Allow matrix mode editing even when current state mode is ON
+    if norns_mode == 6 then
+        handle_enc3_matrix_mode(d)
+        return
+    end
+
+    -- Block edits for other modes when current state mode is ON
     if grid_ui_state.current_state_mode then
         if params:get("info_banner") == 2 then
             info_banner_mod.show("CURRENT STATE MODE - EDITS DISABLED")
@@ -1182,8 +1152,6 @@ local function handle_enc_3(d)
         handle_enc3_inputs_mode(d)
     elseif norns_mode == 5 then
         handle_enc3_effects_mode(d)
-    elseif norns_mode == 6 then
-        handle_enc3_matrix_mode(d)
     elseif norns_mode >= 1 and norns_mode <= 4 then
         handle_enc3_band_modes(d)
     end
@@ -1258,6 +1226,8 @@ function add_params()
     -- ====================
     -- INPUT SOURCES (HIDDEN - use snapshot parameters instead)
     -- ====================
+    params:add_group("input_sources", 18) -- Audio(1) + Noise(5) + Dust(2) + Osc(6) + File(4)
+
     -- Audio In
     params:add {
         type = "control",
@@ -1265,7 +1235,6 @@ function add_params()
         name = "Level",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0), -- Default 0.0 (user brings it up manually)
         formatter = function(p) return string.format("%.2f", p:get()) end,
-        hidden = true,
         action = function(level)
             if engine and engine.audio_in_level then engine.audio_in_level(level) end
         end
@@ -1278,7 +1247,6 @@ function add_params()
         name = "Level",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
-        hidden = true,
         action = function(level)
             if engine and engine.noise_level then engine.noise_level(level) end
         end
@@ -1289,7 +1257,6 @@ function add_params()
         id = "noise_lfo_rate",
         name = "LFO Rate",
         controlspec = controlspec.new(0, 20, 'lin', 0.01, 0, 'Hz'),
-        hidden = true,
         formatter = function(p)
             local val = p:get()
             if val == 0 then
@@ -1309,7 +1276,6 @@ function add_params()
         name = "LFO Depth",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
         formatter = function(p) return string.format("%.0f%%", p:get() * 100) end,
-        hidden = true,
         action = function(depth)
             if engine and engine.noise_lfo_depth then engine.noise_lfo_depth(depth) end
         end
@@ -1322,7 +1288,6 @@ function add_params()
         name = "LFO Rate Jitter Rate",
         controlspec = controlspec.new(0, 10, 'lin', 0.01, 0, 'Hz'),
         formatter = function(p) return string.format("%.2f Hz", p:get()) end,
-        hidden = true,
         action = function(rate)
             if engine and engine.noise_lfo_rate_jitter_rate then engine.noise_lfo_rate_jitter_rate(rate) end
         end
@@ -1334,7 +1299,6 @@ function add_params()
         name = "LFO Rate Jitter Depth",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.0f%%", p:get() * 100) end,
-        hidden = true,
         action = function(depth)
             if engine and engine.noise_lfo_rate_jitter_depth then engine.noise_lfo_rate_jitter_depth(depth) end
         end
@@ -1347,7 +1311,6 @@ function add_params()
         name = "Level",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
-        hidden = true,
         action = function(level)
             if engine and engine.dust_level then engine.dust_level(level) end
         end
@@ -1359,7 +1322,6 @@ function add_params()
         name = "Density",
         controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end,
-        hidden = true,
         action = function(density)
             if engine and engine.dust_density then engine.dust_density(density) end
         end
@@ -1372,7 +1334,6 @@ function add_params()
         name = "Level",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
-        hidden = true,
         action = function(level)
             if engine and engine.osc_level then engine.osc_level(level) end
         end
@@ -1384,7 +1345,6 @@ function add_params()
         name = "Frequency",
         controlspec = controlspec.new(0.1, 2000, 'exp', 0, 5, 'Hz'),
         formatter = function(p) return string.format("%.2f Hz", p:get()) end,
-        hidden = true,
         action = function(freq)
             if engine and engine.osc_freq then engine.osc_freq(freq) end
         end
@@ -1396,7 +1356,6 @@ function add_params()
         name = "Timbre",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.3),
         formatter = function(p) return string.format("%.2f", p:get()) end,
-        hidden = true,
         action = function(timbre)
             if engine and engine.osc_timbre then engine.osc_timbre(timbre) end
         end
@@ -1408,7 +1367,6 @@ function add_params()
         name = "Morph",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
-        hidden = true,
         action = function(warp)
             if engine and engine.osc_warp then engine.osc_warp(warp) end
         end
@@ -1420,7 +1378,6 @@ function add_params()
         name = "Mod Rate",
         controlspec = controlspec.new(0.1, 100, 'exp', 0.1, 5.0, 'Hz'),
         formatter = function(p) return string.format("%.1f Hz", p:get()) end,
-        hidden = true,
         action = function(rate)
             if engine and engine.osc_mod_rate then engine.osc_mod_rate(rate) end
         end
@@ -1432,7 +1389,6 @@ function add_params()
         name = "Mod Depth",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
-        hidden = true,
         action = function(depth)
             if engine and engine.osc_mod_depth then engine.osc_mod_depth(depth) end
         end
@@ -1444,7 +1400,6 @@ function add_params()
         id = "file_path",
         name = "File Path",
         path = _path.audio,
-        hidden = true,
         action = function(file)
             if engine and engine.file_load and file ~= "" then
                 engine.file_load(file)
@@ -1458,7 +1413,6 @@ function add_params()
         name = "Level",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
-        hidden = true,
         action = function(level)
             if engine and engine.file_level then engine.file_level(level) end
         end
@@ -1469,7 +1423,6 @@ function add_params()
         id = "file_speed",
         name = "Speed",
         controlspec = controlspec.new(-4, 4, 'lin', 0.01, 1.0),
-        hidden = true,
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(speed)
             if engine and engine.file_speed then engine.file_speed(speed) end
@@ -1482,7 +1435,6 @@ function add_params()
         id = "file_gate",
         name = "Play/Stop",
         behavior = "toggle",
-        hidden = true,
         default = 0,
         action = function(gate)
             if engine and engine.file_gate then engine.file_gate(gate) end
@@ -1492,6 +1444,8 @@ function add_params()
     -- ====================
     -- OUTPUT EFFECTS (HIDDEN - use snapshot parameters instead)
     -- ====================
+    params:add_group("output_effects", 9) -- Delay(4) + EQ(5)
+
     -- Delay
     params:add {
         type = "control",
@@ -1499,7 +1453,6 @@ function add_params()
         name = "Time",
         controlspec = controlspec.new(0.01, 10.0, 'exp', 0.01, 0.5, 's'),
         formatter = function(p) return string.format("%.2fs", p:get()) end,
-        hidden = true,
         action = function(time)
             if engine and engine.delay_time then engine.delay_time(time) end
         end
@@ -1511,7 +1464,6 @@ function add_params()
         name = "Feedback",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end,
-        hidden = true,
         action = function(feedback)
             if engine and engine.delay_feedback then engine.delay_feedback(feedback) end
         end
@@ -1523,7 +1475,6 @@ function add_params()
         name = "Mix",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
-        hidden = true,
         action = function(mix)
             if engine and engine.delay_mix then engine.delay_mix(mix) end
         end
@@ -1535,7 +1486,6 @@ function add_params()
         name = "Width",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end,
-        hidden = true,
         action = function(width)
             if engine and engine.delay_width then engine.delay_width(width) end
         end
@@ -1548,7 +1498,6 @@ function add_params()
         name = "Low Cut",
         controlspec = controlspec.new(10, 5000, 'exp', 1, 20, 'Hz'), -- More extreme: 10Hz-5kHz
         formatter = function(p) return string.format("%.0f Hz", p:get()) end,
-        hidden = true,
         action = function(freq)
             if engine and engine.eq_low_cut then engine.eq_low_cut(freq) end
         end
@@ -1560,7 +1509,6 @@ function add_params()
         name = "High Cut",
         controlspec = controlspec.new(500, 22000, 'exp', 1, 20000, 'Hz'), -- More extreme: 500Hz-22kHz
         formatter = function(p) return string.format("%.0f Hz", p:get()) end,
-        hidden = true,
         action = function(freq)
             if engine and engine.eq_high_cut then engine.eq_high_cut(freq) end
         end
@@ -1572,7 +1520,6 @@ function add_params()
         name = "Low Gain",
         controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'), -- More extreme: -48 to +24 dB
         formatter = function(p) return string.format("%.1f dB", p:get()) end,
-        hidden = true,
         action = function(gain)
             if engine and engine.eq_low_gain then engine.eq_low_gain(gain) end
         end
@@ -1584,7 +1531,6 @@ function add_params()
         name = "Mid Gain",
         controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'), -- More extreme: -48 to +24 dB
         formatter = function(p) return string.format("%.1f dB", p:get()) end,
-        hidden = true,
         action = function(gain)
             if engine and engine.eq_mid_gain then engine.eq_mid_gain(gain) end
         end
@@ -1596,7 +1542,6 @@ function add_params()
         name = "High Gain",
         controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'), -- More extreme: -48 to +24 dB
         formatter = function(p) return string.format("%.1f dB", p:get()) end,
-        hidden = true,
         action = function(gain)
             if engine and engine.eq_high_gain then engine.eq_high_gain(gain) end
         end
@@ -2614,7 +2559,6 @@ function add_params()
             name = string.format("Band %02d Level", i),
             controlspec = controlspec.new(-60, 12, 'lin', 0.1, -12, 'dB'),
             formatter = function(p) return string.format("%.1f dB", p:get()) end,
-            hidden = true,
             action = function(level)
                 if engine and engine.level then engine.level(i, level) end
             end
@@ -2625,7 +2569,6 @@ function add_params()
             name = string.format("Band %02d Pan", i),
             controlspec = controlspec.new(-1, 1, 'lin', 0.01, 0),
             formatter = function(p) return string.format("%.2f", p:get()) end,
-            hidden = true,
             action = function(pan)
                 if engine and engine.pan then engine.pan(i, pan) end
             end
@@ -2636,7 +2579,6 @@ function add_params()
             name = string.format("Band %02d Thresh", i),
             controlspec = controlspec.new(0, 0.2, 'lin', 0.001, 0),
             formatter = function(p) return string.format("%.3f", p:get()) end,
-            hidden = true,
             action = function(thresh)
                 if engine and engine.thresh_band then engine.thresh_band(i, thresh) end
             end
@@ -2647,7 +2589,6 @@ function add_params()
             name = string.format("Band %02d Decimate", i),
             controlspec = controlspec.new(100, 48000, 'exp', 1, 48000, 'Hz'),
             formatter = function(p) return string.format("%.0f Hz", p:get()) end,
-            hidden = true,
             action = function(rate)
                 if engine and engine.decimate_band then engine.decimate_band(i, rate) end
             end
