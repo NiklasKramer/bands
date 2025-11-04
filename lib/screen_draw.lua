@@ -481,9 +481,9 @@ function ScreenDraw:draw_matrix_screen()
 
         -- Interpolate between start and target positions
         local current_x = self.glide_state.start_pos.x +
-        (self.glide_state.target_pos.x - self.glide_state.start_pos.x) * progress
+            (self.glide_state.target_pos.x - self.glide_state.start_pos.x) * progress
         local current_y = self.glide_state.start_pos.y +
-        (self.glide_state.target_pos.y - self.glide_state.start_pos.y) * progress
+            (self.glide_state.target_pos.y - self.glide_state.start_pos.y) * progress
 
         -- Draw current glide position
         local glide_x = start_x + (current_x - 1) * cell_size
