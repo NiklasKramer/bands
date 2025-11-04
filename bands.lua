@@ -399,6 +399,49 @@ function redraw_grid()
     g:refresh()
 end
 
+-- Hide all live (non-snapshot) parameters
+local function hide_live_parameters()
+    -- Input sources
+    params:hide("audio_in_level")
+    params:hide("noise_level")
+    params:hide("noise_lfo_rate")
+    params:hide("noise_lfo_depth")
+    params:hide("noise_lfo_rate_jitter_rate")
+    params:hide("noise_lfo_rate_jitter_depth")
+    params:hide("dust_level")
+    params:hide("dust_density")
+    params:hide("osc_level")
+    params:hide("osc_freq")
+    params:hide("osc_timbre")
+    params:hide("osc_warp")
+    params:hide("osc_mod_rate")
+    params:hide("osc_mod_depth")
+    params:hide("file_path")
+    params:hide("file_level")
+    params:hide("file_speed")
+    params:hide("file_gate")
+
+    -- Output effects
+    params:hide("delay_time")
+    params:hide("delay_feedback")
+    params:hide("delay_mix")
+    params:hide("delay_width")
+    params:hide("eq_low_cut")
+    params:hide("eq_high_cut")
+    params:hide("eq_low_gain")
+    params:hide("eq_mid_gain")
+    params:hide("eq_high_gain")
+
+    -- Bands group and all parameters
+    params:hide("bands")
+    for i = 1, #freqs do
+        params:hide(string.format("band_%02d_level", i))
+        params:hide(string.format("band_%02d_pan", i))
+        params:hide(string.format("band_%02d_thresh", i))
+        params:hide(string.format("band_%02d_decimate", i))
+    end
+end
+
 -- init
 function init()
     screen.aa(0)
@@ -406,6 +449,9 @@ function init()
 
     -- setup parameters
     add_params()
+
+    -- Hide all non-snapshot input/output parameters
+    hide_live_parameters()
 
     -- Delay params:bang() to allow engine to fully initialize
     -- This prevents clicks on script load
@@ -1210,31 +1256,29 @@ function add_params()
     }
 
     -- ====================
-    -- INPUT SOURCES
+    -- INPUT SOURCES (HIDDEN - use snapshot parameters instead)
     -- ====================
-    params:add_separator("input_sources", "Input Sources")
-
     -- Audio In
-    params:add_separator("audio_in_section", "> Audio In")
     params:add {
         type = "control",
         id = "audio_in_level",
         name = "Level",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0), -- Default 0.0 (user brings it up manually)
         formatter = function(p) return string.format("%.2f", p:get()) end,
+        hidden = true,
         action = function(level)
             if engine and engine.audio_in_level then engine.audio_in_level(level) end
         end
     }
 
     -- Noise
-    params:add_separator("noise_section", "> Noise")
     params:add {
         type = "control",
         id = "noise_level",
         name = "Level",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
+        hidden = true,
         action = function(level)
             if engine and engine.noise_level then engine.noise_level(level) end
         end
@@ -1245,6 +1289,7 @@ function add_params()
         id = "noise_lfo_rate",
         name = "LFO Rate",
         controlspec = controlspec.new(0, 20, 'lin', 0.01, 0, 'Hz'),
+        hidden = true,
         formatter = function(p)
             local val = p:get()
             if val == 0 then
@@ -1264,6 +1309,7 @@ function add_params()
         name = "LFO Depth",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 1.0),
         formatter = function(p) return string.format("%.0f%%", p:get() * 100) end,
+        hidden = true,
         action = function(depth)
             if engine and engine.noise_lfo_depth then engine.noise_lfo_depth(depth) end
         end
@@ -1276,6 +1322,7 @@ function add_params()
         name = "LFO Rate Jitter Rate",
         controlspec = controlspec.new(0, 10, 'lin', 0.01, 0, 'Hz'),
         formatter = function(p) return string.format("%.2f Hz", p:get()) end,
+        hidden = true,
         action = function(rate)
             if engine and engine.noise_lfo_rate_jitter_rate then engine.noise_lfo_rate_jitter_rate(rate) end
         end
@@ -1287,19 +1334,20 @@ function add_params()
         name = "LFO Rate Jitter Depth",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.0f%%", p:get() * 100) end,
+        hidden = true,
         action = function(depth)
             if engine and engine.noise_lfo_rate_jitter_depth then engine.noise_lfo_rate_jitter_depth(depth) end
         end
     }
 
     -- Dust
-    params:add_separator("dust_section", "> Dust")
     params:add {
         type = "control",
         id = "dust_level",
         name = "Level",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
+        hidden = true,
         action = function(level)
             if engine and engine.dust_level then engine.dust_level(level) end
         end
@@ -1311,19 +1359,20 @@ function add_params()
         name = "Density",
         controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end,
+        hidden = true,
         action = function(density)
             if engine and engine.dust_density then engine.dust_density(density) end
         end
     }
 
     -- Oscillator
-    params:add_separator("osc_section", "> Oscillator")
     params:add {
         type = "control",
         id = "osc_level",
         name = "Level",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
+        hidden = true,
         action = function(level)
             if engine and engine.osc_level then engine.osc_level(level) end
         end
@@ -1335,6 +1384,7 @@ function add_params()
         name = "Frequency",
         controlspec = controlspec.new(0.1, 2000, 'exp', 0, 5, 'Hz'),
         formatter = function(p) return string.format("%.2f Hz", p:get()) end,
+        hidden = true,
         action = function(freq)
             if engine and engine.osc_freq then engine.osc_freq(freq) end
         end
@@ -1346,6 +1396,7 @@ function add_params()
         name = "Timbre",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.3),
         formatter = function(p) return string.format("%.2f", p:get()) end,
+        hidden = true,
         action = function(timbre)
             if engine and engine.osc_timbre then engine.osc_timbre(timbre) end
         end
@@ -1357,6 +1408,7 @@ function add_params()
         name = "Morph",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
+        hidden = true,
         action = function(warp)
             if engine and engine.osc_warp then engine.osc_warp(warp) end
         end
@@ -1368,6 +1420,7 @@ function add_params()
         name = "Mod Rate",
         controlspec = controlspec.new(0.1, 100, 'exp', 0.1, 5.0, 'Hz'),
         formatter = function(p) return string.format("%.1f Hz", p:get()) end,
+        hidden = true,
         action = function(rate)
             if engine and engine.osc_mod_rate then engine.osc_mod_rate(rate) end
         end
@@ -1379,18 +1432,19 @@ function add_params()
         name = "Mod Depth",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
+        hidden = true,
         action = function(depth)
             if engine and engine.osc_mod_depth then engine.osc_mod_depth(depth) end
         end
     }
 
     -- File
-    params:add_separator("file_section", "> File")
     params:add {
         type = "file",
         id = "file_path",
         name = "File Path",
         path = _path.audio,
+        hidden = true,
         action = function(file)
             if engine and engine.file_load and file ~= "" then
                 engine.file_load(file)
@@ -1404,6 +1458,7 @@ function add_params()
         name = "Level",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
+        hidden = true,
         action = function(level)
             if engine and engine.file_level then engine.file_level(level) end
         end
@@ -1414,6 +1469,7 @@ function add_params()
         id = "file_speed",
         name = "Speed",
         controlspec = controlspec.new(-4, 4, 'lin', 0.01, 1.0),
+        hidden = true,
         formatter = function(p) return string.format("%.2f", p:get()) end,
         action = function(speed)
             if engine and engine.file_speed then engine.file_speed(speed) end
@@ -1426,6 +1482,7 @@ function add_params()
         id = "file_gate",
         name = "Play/Stop",
         behavior = "toggle",
+        hidden = true,
         default = 0,
         action = function(gate)
             if engine and engine.file_gate then engine.file_gate(gate) end
@@ -1433,18 +1490,16 @@ function add_params()
     }
 
     -- ====================
-    -- OUTPUT EFFECTS
+    -- OUTPUT EFFECTS (HIDDEN - use snapshot parameters instead)
     -- ====================
-    params:add_separator("output_effects", "Output Effects")
-
     -- Delay
-    params:add_separator("delay_section", "> Delay")
     params:add {
         type = "control",
         id = "delay_time",
         name = "Time",
         controlspec = controlspec.new(0.01, 10.0, 'exp', 0.01, 0.5, 's'),
         formatter = function(p) return string.format("%.2fs", p:get()) end,
+        hidden = true,
         action = function(time)
             if engine and engine.delay_time then engine.delay_time(time) end
         end
@@ -1456,6 +1511,7 @@ function add_params()
         name = "Feedback",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end,
+        hidden = true,
         action = function(feedback)
             if engine and engine.delay_feedback then engine.delay_feedback(feedback) end
         end
@@ -1467,6 +1523,7 @@ function add_params()
         name = "Mix",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end,
+        hidden = true,
         action = function(mix)
             if engine and engine.delay_mix then engine.delay_mix(mix) end
         end
@@ -1478,19 +1535,20 @@ function add_params()
         name = "Width",
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end,
+        hidden = true,
         action = function(width)
             if engine and engine.delay_width then engine.delay_width(width) end
         end
     }
 
     -- EQ
-    params:add_separator("eq_section", "> EQ")
     params:add {
         type = "control",
         id = "eq_low_cut",
         name = "Low Cut",
         controlspec = controlspec.new(10, 5000, 'exp', 1, 20, 'Hz'), -- More extreme: 10Hz-5kHz
         formatter = function(p) return string.format("%.0f Hz", p:get()) end,
+        hidden = true,
         action = function(freq)
             if engine and engine.eq_low_cut then engine.eq_low_cut(freq) end
         end
@@ -1502,6 +1560,7 @@ function add_params()
         name = "High Cut",
         controlspec = controlspec.new(500, 22000, 'exp', 1, 20000, 'Hz'), -- More extreme: 500Hz-22kHz
         formatter = function(p) return string.format("%.0f Hz", p:get()) end,
+        hidden = true,
         action = function(freq)
             if engine and engine.eq_high_cut then engine.eq_high_cut(freq) end
         end
@@ -1513,6 +1572,7 @@ function add_params()
         name = "Low Gain",
         controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'), -- More extreme: -48 to +24 dB
         formatter = function(p) return string.format("%.1f dB", p:get()) end,
+        hidden = true,
         action = function(gain)
             if engine and engine.eq_low_gain then engine.eq_low_gain(gain) end
         end
@@ -1524,6 +1584,7 @@ function add_params()
         name = "Mid Gain",
         controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'), -- More extreme: -48 to +24 dB
         formatter = function(p) return string.format("%.1f dB", p:get()) end,
+        hidden = true,
         action = function(gain)
             if engine and engine.eq_mid_gain then engine.eq_mid_gain(gain) end
         end
@@ -1535,6 +1596,7 @@ function add_params()
         name = "High Gain",
         controlspec = controlspec.new(-48, 24, 'lin', 0.1, 0, 'dB'), -- More extreme: -48 to +24 dB
         formatter = function(p) return string.format("%.1f dB", p:get()) end,
+        hidden = true,
         action = function(gain)
             if engine and engine.eq_high_gain then engine.eq_high_gain(gain) end
         end
@@ -1546,7 +1608,10 @@ function add_params()
     params:add_separator("snapshots_section", "Snapshots")
 
     -- Snapshot A
-    params:add_group("snapshot A", 91)
+    params:add_group("snapshot A", 102)
+
+    -- Global Settings
+    params:add_separator("snapshot_a_global", "> Global")
     params:add {
         type = "control",
         id = "snapshot_a_q",
@@ -1555,7 +1620,9 @@ function add_params()
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
 
-    -- Input source settings for snapshot A
+    -- Input Sources
+    params:add_separator("snapshot_a_inputs", "> Input Sources")
+    params:add_separator("snapshot_a_audio_input", ">> Audio Input")
     params:add {
         type = "control",
         id = "snapshot_a_audio_in_level",
@@ -1563,6 +1630,7 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
+    params:add_separator("snapshot_a_noise", ">> Noise")
     params:add {
         type = "control",
         id = "snapshot_a_noise_level",
@@ -1612,6 +1680,7 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.0f%%", p:get() * 100) end
     }
+    params:add_separator("snapshot_a_dust", ">> Dust")
     params:add {
         type = "control",
         id = "snapshot_a_dust_density",
@@ -1619,6 +1688,7 @@ function add_params()
         controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
+    params:add_separator("snapshot_a_osc", ">> Oscillator")
     params:add {
         type = "control",
         id = "snapshot_a_osc_level",
@@ -1661,6 +1731,7 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
+    params:add_separator("snapshot_a_file", ">> File")
     params:add {
         type = "control",
         id = "snapshot_a_file_level",
@@ -1682,6 +1753,10 @@ function add_params()
         behavior = "toggle",
         default = 0
     }
+
+    -- Output Effects
+    params:add_separator("snapshot_a_effects", "> Output Effects")
+    params:add_separator("snapshot_a_delay", ">> Delay")
     params:add {
         type = "control",
         id = "snapshot_a_delay_time",
@@ -1693,7 +1768,7 @@ function add_params()
         type = "control",
         id = "snapshot_a_delay_feedback",
         name = "Delay Feedback",
-        controlspec = controlspec.new(0, 1.2, 'lin', 0.01, 0.5),
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
     params:add {
@@ -1710,6 +1785,7 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
+    params:add_separator("snapshot_a_eq", ">> EQ")
     params:add {
         type = "control",
         id = "snapshot_a_eq_low_cut",
@@ -1746,6 +1822,8 @@ function add_params()
         formatter = function(p) return string.format("%.1f dB", p:get()) end
     }
 
+    -- Bands
+    params:add_separator("snapshot_a_bands", "> Bands")
     for i = 1, num do
         local hz = freqs[i]
         params:add {
@@ -1779,7 +1857,10 @@ function add_params()
     end
 
     -- Snapshot B
-    params:add_group("snapshot B", 91)
+    params:add_group("snapshot B", 102)
+
+    -- Global Settings
+    params:add_separator("snapshot_b_global", "> Global")
     params:add {
         type = "control",
         id = "snapshot_b_q",
@@ -1788,7 +1869,9 @@ function add_params()
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
 
-    -- Input source settings for snapshot B
+    -- Input Sources
+    params:add_separator("snapshot_b_inputs", "> Input Sources")
+    params:add_separator("snapshot_b_audio_input", ">> Audio Input")
     params:add {
         type = "control",
         id = "snapshot_b_audio_in_level",
@@ -1796,6 +1879,7 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
+    params:add_separator("snapshot_b_noise", ">> Noise")
     params:add {
         type = "control",
         id = "snapshot_b_noise_level",
@@ -1845,6 +1929,7 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.0f%%", p:get() * 100) end
     }
+    params:add_separator("snapshot_b_dust", ">> Dust")
     params:add {
         type = "control",
         id = "snapshot_b_dust_density",
@@ -1852,6 +1937,7 @@ function add_params()
         controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
+    params:add_separator("snapshot_b_osc", ">> Oscillator")
     params:add {
         type = "control",
         id = "snapshot_b_osc_level",
@@ -1894,6 +1980,7 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
+    params:add_separator("snapshot_b_file", ">> File")
     params:add {
         type = "control",
         id = "snapshot_b_file_level",
@@ -1915,6 +2002,10 @@ function add_params()
         behavior = "toggle",
         default = 0
     }
+
+    -- Output Effects
+    params:add_separator("snapshot_b_effects", "> Output Effects")
+    params:add_separator("snapshot_b_delay", ">> Delay")
     params:add {
         type = "control",
         id = "snapshot_b_delay_time",
@@ -1926,7 +2017,7 @@ function add_params()
         type = "control",
         id = "snapshot_b_delay_feedback",
         name = "Delay Feedback",
-        controlspec = controlspec.new(0, 1.2, 'lin', 0.01, 0.5),
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
     params:add {
@@ -1943,6 +2034,7 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
+    params:add_separator("snapshot_b_eq", ">> EQ")
     params:add {
         type = "control",
         id = "snapshot_b_eq_low_cut",
@@ -1979,6 +2071,8 @@ function add_params()
         formatter = function(p) return string.format("%.1f dB", p:get()) end
     }
 
+    -- Bands
+    params:add_separator("snapshot_b_bands", "> Bands")
     for i = 1, num do
         local hz = freqs[i]
         params:add {
@@ -2012,7 +2106,10 @@ function add_params()
     end
 
     -- Snapshot C
-    params:add_group("snapshot C", 91)
+    params:add_group("snapshot C", 102)
+
+    -- Global Settings
+    params:add_separator("snapshot_c_global", "> Global")
     params:add {
         type = "control",
         id = "snapshot_c_q",
@@ -2021,7 +2118,9 @@ function add_params()
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
 
-    -- Input source settings for snapshot C
+    -- Input Sources
+    params:add_separator("snapshot_c_inputs", "> Input Sources")
+    params:add_separator("snapshot_c_audio_input", ">> Audio Input")
     params:add {
         type = "control",
         id = "snapshot_c_audio_in_level",
@@ -2029,6 +2128,7 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
+    params:add_separator("snapshot_c_noise", ">> Noise")
     params:add {
         type = "control",
         id = "snapshot_c_noise_level",
@@ -2078,6 +2178,7 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.0f%%", p:get() * 100) end
     }
+    params:add_separator("snapshot_c_dust", ">> Dust")
     params:add {
         type = "control",
         id = "snapshot_c_dust_density",
@@ -2085,6 +2186,7 @@ function add_params()
         controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
+    params:add_separator("snapshot_c_osc", ">> Oscillator")
     params:add {
         type = "control",
         id = "snapshot_c_osc_level",
@@ -2127,6 +2229,7 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
+    params:add_separator("snapshot_c_file", ">> File")
     params:add {
         type = "control",
         id = "snapshot_c_file_level",
@@ -2148,6 +2251,10 @@ function add_params()
         behavior = "toggle",
         default = 0
     }
+
+    -- Output Effects
+    params:add_separator("snapshot_c_effects", "> Output Effects")
+    params:add_separator("snapshot_c_delay", ">> Delay")
     params:add {
         type = "control",
         id = "snapshot_c_delay_time",
@@ -2159,7 +2266,7 @@ function add_params()
         type = "control",
         id = "snapshot_c_delay_feedback",
         name = "Delay Feedback",
-        controlspec = controlspec.new(0, 1.2, 'lin', 0.01, 0.5),
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
     params:add {
@@ -2176,6 +2283,7 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
+    params:add_separator("snapshot_c_eq", ">> EQ")
     params:add {
         type = "control",
         id = "snapshot_c_eq_low_cut",
@@ -2212,6 +2320,8 @@ function add_params()
         formatter = function(p) return string.format("%.1f dB", p:get()) end
     }
 
+    -- Bands
+    params:add_separator("snapshot_c_bands", "> Bands")
     for i = 1, num do
         local hz = freqs[i]
         params:add {
@@ -2245,7 +2355,10 @@ function add_params()
     end
 
     -- Snapshot D
-    params:add_group("snapshot D", 91)
+    params:add_group("snapshot D", 102)
+
+    -- Global Settings
+    params:add_separator("snapshot_d_global", "> Global")
     params:add {
         type = "control",
         id = "snapshot_d_q",
@@ -2254,7 +2367,9 @@ function add_params()
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
 
-    -- Input source settings for snapshot D
+    -- Input Sources
+    params:add_separator("snapshot_d_inputs", "> Input Sources")
+    params:add_separator("snapshot_d_audio_input", ">> Audio Input")
     params:add {
         type = "control",
         id = "snapshot_d_audio_in_level",
@@ -2262,6 +2377,7 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
+    params:add_separator("snapshot_d_noise", ">> Noise")
     params:add {
         type = "control",
         id = "snapshot_d_noise_level",
@@ -2311,6 +2427,7 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.0f%%", p:get() * 100) end
     }
+    params:add_separator("snapshot_d_dust", ">> Dust")
     params:add {
         type = "control",
         id = "snapshot_d_dust_density",
@@ -2318,6 +2435,7 @@ function add_params()
         controlspec = controlspec.new(1, 1000, 'exp', 1, 10, 'Hz'),
         formatter = function(p) return string.format("%.0f Hz", p:get()) end
     }
+    params:add_separator("snapshot_d_osc", ">> Oscillator")
     params:add {
         type = "control",
         id = "snapshot_d_osc_level",
@@ -2360,6 +2478,7 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.0),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
+    params:add_separator("snapshot_d_file", ">> File")
     params:add {
         type = "control",
         id = "snapshot_d_file_level",
@@ -2381,6 +2500,10 @@ function add_params()
         behavior = "toggle",
         default = 0
     }
+
+    -- Output Effects
+    params:add_separator("snapshot_d_effects", "> Output Effects")
+    params:add_separator("snapshot_d_delay", ">> Delay")
     params:add {
         type = "control",
         id = "snapshot_d_delay_time",
@@ -2392,7 +2515,7 @@ function add_params()
         type = "control",
         id = "snapshot_d_delay_feedback",
         name = "Delay Feedback",
-        controlspec = controlspec.new(0, 1.2, 'lin', 0.01, 0.5),
+        controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
     params:add {
@@ -2409,6 +2532,7 @@ function add_params()
         controlspec = controlspec.new(0, 1, 'lin', 0.01, 0.5),
         formatter = function(p) return string.format("%.2f", p:get()) end
     }
+    params:add_separator("snapshot_d_eq", ">> EQ")
     params:add {
         type = "control",
         id = "snapshot_d_eq_low_cut",
@@ -2445,6 +2569,8 @@ function add_params()
         formatter = function(p) return string.format("%.1f dB", p:get()) end
     }
 
+    -- Bands
+    params:add_separator("snapshot_d_bands", "> Bands")
     for i = 1, num do
         local hz = freqs[i]
         params:add {
@@ -2488,6 +2614,7 @@ function add_params()
             name = string.format("Band %02d Level", i),
             controlspec = controlspec.new(-60, 12, 'lin', 0.1, -12, 'dB'),
             formatter = function(p) return string.format("%.1f dB", p:get()) end,
+            hidden = true,
             action = function(level)
                 if engine and engine.level then engine.level(i, level) end
             end
@@ -2498,6 +2625,7 @@ function add_params()
             name = string.format("Band %02d Pan", i),
             controlspec = controlspec.new(-1, 1, 'lin', 0.01, 0),
             formatter = function(p) return string.format("%.2f", p:get()) end,
+            hidden = true,
             action = function(pan)
                 if engine and engine.pan then engine.pan(i, pan) end
             end
@@ -2508,6 +2636,7 @@ function add_params()
             name = string.format("Band %02d Thresh", i),
             controlspec = controlspec.new(0, 0.2, 'lin', 0.001, 0),
             formatter = function(p) return string.format("%.3f", p:get()) end,
+            hidden = true,
             action = function(thresh)
                 if engine and engine.thresh_band then engine.thresh_band(i, thresh) end
             end
@@ -2518,6 +2647,7 @@ function add_params()
             name = string.format("Band %02d Decimate", i),
             controlspec = controlspec.new(100, 48000, 'exp', 1, 48000, 'Hz'),
             formatter = function(p) return string.format("%.0f Hz", p:get()) end,
+            hidden = true,
             action = function(rate)
                 if engine and engine.decimate_band then engine.decimate_band(i, rate) end
             end
